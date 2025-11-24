@@ -1,4 +1,4 @@
-# UGV_ROS_CUDA (windows)
+# ROS_CUDA (windows)
 ## WSL ubuntu 24.04安裝 NVIDIA 相關套件
 ``` bash
 distribution=$(. /etc/os-release;echo $ID$VERSION_ID)
