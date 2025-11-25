@@ -1,3 +1,5 @@
+version: "3.9"
+
 services:
   navigation:
     build:
@@ -5,17 +7,15 @@ services:
       dockerfile: Dockerfile
     image: nycusystemlab/navigation:latest
     container_name: navigation
-    network_mode: "host"           # 相當於 --network=host
-    privileged: true               # 相當於 --privileged
-    runtime: nvidia                # GPU 支援
+    network_mode: "host"
+    privileged: true
+    runtime: nvidia
     environment:
-      - DISPLAY=${DISPLAY}          # X11
+      - DISPLAY=${DISPLAY}
       - NVIDIA_VISIBLE_DEVICES=all
       - NVIDIA_DRIVER_CAPABILITIES=all
     volumes:
-      # X11 共享顯示
       - /tmp/.X11-unix:/tmp/.X11-unix:rw
-      # 需要的系統裝置
       - /dev:/dev
       - /var/run/dbus:/var/run/dbus
       - /run/udev:/run/udev
@@ -23,7 +23,7 @@ services:
       - /sys/devices:/sys/devices
       - /proc/device-tree:/proc/device-tree
       - /etc/localtime:/etc/localtime:ro
-      # 掛載開發原始碼
       - ./navigation/src/hdl_ws:/root/hdl_ws/src
       - ./navigation/src/lidar_ws:/root/lidar_ws/src
     entrypoint: ["/root/entrypoint.sh"]
+    command: ["bash"]
