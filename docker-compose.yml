@@ -24,4 +24,4 @@ services:
       - ./navigation/src/hdl_ws:/root/hdl_ws/src
       - ./navigation/src/lidar_ws:/root/lidar_ws/src
     entrypoint: ["/root/entrypoint.sh"]
-    command: ["bash"]
+    command: ["bash", "-c", "while true; do sleep 1000; done"]
