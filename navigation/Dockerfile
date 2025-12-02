@@ -5,6 +5,8 @@ FROM nycusystemlab/l4t-noetic:latest
 
 ENV DEBIAN_FRONTEND=noninteractive
 ENV WORKSPACE=/root
+# *** 修正：確保 ROS_DISTRO 變數被定義 ***
+ENV ROS_DISTRO=noetic
 
 # -------------------------------------------------
 # 1. 安裝系統與 ROS 依賴 (包含 ddynamic_reconfigure, rgbd_launch)
