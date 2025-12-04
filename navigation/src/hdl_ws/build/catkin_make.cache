@@ -1,2 +1,0 @@
-fast_gicp:hdl_global_localization:hdl_localization:ndt_omp
--DCATKIN_DEVEL_PREFIX=/home/systemlabagx/hdl_ws/devel -DCMAKE_INSTALL_PREFIX=/home/systemlabagx/hdl_ws/install -G Unix Makefiles

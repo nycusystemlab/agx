@@ -1,1 +1,0 @@
-/usr/bin/c++ -fPIC -std=c++14  -fopenmp -O3 -DNDEBUG   -shared -Wl,-soname,libndt_omp.so -o /home/systemlabagx/hdl_ws/devel/lib/libndt_omp.so CMakeFiles/ndt_omp.dir/src/pclomp/voxel_grid_covariance_omp.cpp.o CMakeFiles/ndt_omp.dir/src/pclomp/ndt_omp.cpp.o CMakeFiles/ndt_omp.dir/src/pclomp/gicp_omp.cpp.o 

@@ -1,5 +1,0 @@
-# generated from catkin/cmake/template/order_packages.context.py.in
-source_root_dir = '/home/systemlabagx/lidar_ws/src'
-whitelisted_packages = ''.split(';') if '' != '' else []
-blacklisted_packages = ''.split(';') if '' != '' else []
-underlay_workspaces = '/home/systemlabagx/disk/Loam_ws/devel;/home/systemlabagx/disk/Lun_RL_ws/devel;/home/systemlabagx/disk/gmapping_ws/devel;/home/systemlabagx/disk/gps_ws/devel;/home/systemlabagx/disk/realsense_ws/devel;/home/systemlabagx/disk/read_pcd/catkin_ws/devel;/home/systemlabagx/disk/sixwheel_ws/devel;/home/systemlabagx/lidar_ws/devel;/opt/ros/noetic'.split(';') if '/home/systemlabagx/disk/Loam_ws/devel;/home/systemlabagx/disk/Lun_RL_ws/devel;/home/systemlabagx/disk/gmapping_ws/devel;/home/systemlabagx/disk/gps_ws/devel;/home/systemlabagx/disk/realsense_ws/devel;/home/systemlabagx/disk/read_pcd/catkin_ws/devel;/home/systemlabagx/disk/sixwheel_ws/devel;/home/systemlabagx/lidar_ws/devel;/opt/ros/noetic' != '' else []

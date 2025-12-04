@@ -1,0 +1,27 @@
+# PC 開發專用：使用標準 x86 Humble Desktop
+FROM osrf/ros:humble-desktop
+
+ENV DEBIAN_FRONTEND=noninteractive
+ENV WORKSPACE=/root/ros2_ws
+
+# 1. 安裝 Nav2 與相關工具
+RUN apt-get update && apt-get install -y \
+    ros-humble-navigation2 \
+    ros-humble-nav2-bringup \
+    ros-humble-robot-localization \
+    ros-humble-slam-toolbox \
+    ros-humble-rmw-cyclonedds-cpp \
+    ros-humble-xacro \
+    ros-humble-joint-state-publisher-gui \
+    && rm -rf /var/lib/apt/lists/*
+
+# 2. 建立工作空間
+RUN mkdir -p ${WORKSPACE}/src
+
+# 3. 複製 Entrypoint
+COPY entrypoint.sh /root/entrypoint.sh
+RUN chmod +x /root/entrypoint.sh
+
+WORKDIR ${WORKSPACE}
+ENTRYPOINT ["/root/entrypoint.sh"]
+CMD ["bash"]

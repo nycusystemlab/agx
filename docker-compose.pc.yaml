@@ -1,0 +1,70 @@
+version: '2.3'
+
+services:
+  # =========================================
+  # 1. ROS 1 底層控制 (Navigation)
+  # =========================================
+  control:
+    build:
+      context: ./navigation
+      dockerfile: Dockerfile.pc  # 使用 PC 版 Dockerfile
+    image: agx_ros/control:pc
+    container_name: pc_control_ros1
+    
+    network_mode: "host"
+    privileged: true
+    environment:
+      - ROS_MASTER_URI=http://localhost:11311
+      - ROS_IP=127.0.0.1
+      - DISPLAY=${DISPLAY}
+    volumes:
+      - /tmp/.X11-unix:/tmp/.X11-unix:rw
+      # 掛載原始碼 (與 AGX 共用)
+      - ./navigation/src/hdl_ws/src:/root/hdl_ws/src
+      - ./navigation/src/lidar_ws/src:/root/lidar_ws/src
+      - ./navigation/src/realsense_ws/src:/root/realsense_ws/src
+      - ./navigation/entrypoint.sh:/root/entrypoint.sh
+    entrypoint: ["/root/entrypoint.sh"]
+    # command: bash
+    tty: true
+    stdin_open: true
+
+  # =========================================
+  # 2. ROS 1 <-> ROS 2 橋樑 (Bridge)
+  # =========================================
+  # 在 PC 上我們使用現成的 x86 bridge 映像檔來節省編譯時間
+  bridge:
+    image: osrf/ros:foxy-ros1-bridge # 或者自行編譯 Humble bridge
+    # 注意：PC 上完美的 Humble Bridge 映像檔較少，
+    # 這裡建議先用 control 和 planning 開發，若需通訊測試建議自行編譯 bridge
+    container_name: pc_bridge
+    network_mode: "host"
+    environment:
+      - ROS_MASTER_URI=http://localhost:11311
+      - ROS_IP=127.0.0.1
+      - ROS_DOMAIN_ID=0
+
+  # =========================================
+  # 3. ROS 2 高階規劃 (Planning)
+  # =========================================
+  planning:
+    build:
+      context: ./planning
+      dockerfile: Dockerfile.pc  # 使用 PC 版 Dockerfile
+    image: agx_ros/planning:pc
+    container_name: pc_planning_ros2
+    
+    network_mode: "host"
+    privileged: true
+    environment:
+      - ROS_DOMAIN_ID=0
+      - DISPLAY=${DISPLAY}
+    volumes:
+      - /tmp/.X11-unix:/tmp/.X11-unix:rw
+      # 掛載 ROS 2 程式碼
+      - ./planning/src:/root/ros2_ws/src
+      - ./planning/entrypoint.sh:/root/entrypoint.sh
+    entrypoint: ["/root/entrypoint.sh"]
+    # command: bash
+    tty: true
+    stdin_open: true

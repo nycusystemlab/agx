@@ -1,0 +1,84 @@
+# syntax=docker/dockerfile:1.6
+
+# [關鍵修改] 使用 PC 標準的 ROS 1 Noetic Desktop (基於 Ubuntu 20.04)
+# 這能確保你的環境與 AGX 上的舊容器 (JP5) 高度一致
+FROM osrf/ros:noetic-desktop
+
+ENV DEBIAN_FRONTEND=noninteractive
+ENV WORKSPACE=/root
+ENV ROS_DISTRO=noetic
+
+# -------------------------------------------------
+# 1. 安裝系統與 ROS 依賴
+# -------------------------------------------------
+# 我們加入了 build-essential, cmake, git 以便進行編譯
+# 保留了你原本列表中的所有依賴
+# -------------------------------------------------
+RUN apt-get update && apt-get install -y \
+    build-essential \
+    cmake \
+    git \
+    python3-catkin-tools \
+    python3-pip \
+    ros-${ROS_DISTRO}-pcl-ros \
+    libpcl-dev \
+    ros-${ROS_DISTRO}-tf2-eigen \
+    ros-${ROS_DISTRO}-message-filters \
+    ros-${ROS_DISTRO}-diagnostic-updater \
+    ros-${ROS_DISTRO}-image-transport \
+    ros-${ROS_DISTRO}-ddynamic-reconfigure \
+    ros-${ROS_DISTRO}-rgbd-launch \
+    ros-${ROS_DISTRO}-rosserial-python \
+    libssl-dev \
+    libusb-1.0-0-dev \
+    libudev-dev \
+    pkg-config \
+    libpcap-dev \
+    software-properties-common \
+    wget \
+    && rm -rf /var/lib/apt/lists/*
+
+# -------------------------------------------------
+# 2. 安裝 GTSAM
+# -------------------------------------------------
+# PC 版容器 (Ubuntu 20.04) 支援 PPA，這裡保持不變
+# -------------------------------------------------
+RUN add-apt-repository -y ppa:borglab/gtsam-release-4.1 && \
+    apt-get update && \
+    apt-get install -y libgtsam-dev libgtsam-unstable-dev && \
+    rm -rf /var/lib/apt/lists/*
+
+# -------------------------------------------------
+# 3. 手動編譯 Librealsense v2.48.0
+# -------------------------------------------------
+# [重要] 雖然 PC 可以用 apt 安裝，但為了跟 AGX 上的版本 (v2.48.0) 完全一致
+# 避免 "PC 能跑但 AGX 不能跑" 的問題，我們堅持手動編譯！
+# -------------------------------------------------
+RUN git clone -b v2.48.0 https://github.com/IntelRealSense/librealsense.git /tmp/librealsense && \
+    cd /tmp/librealsense && \
+    mkdir build && cd build && \
+    cmake ../ -DCMAKE_BUILD_TYPE=Release \
+              -DBUILD_NETWORK_DEVICE=OFF \
+              -DBUILD_EXAMPLES=OFF \
+              -DBUILD_GRAPHICAL_EXAMPLES=OFF \
+              -DFORCE_RSUSB_BACKEND=ON && \
+    make -j$(nproc) && \
+    make install && \
+    rm -rf /tmp/librealsense
+
+# -------------------------------------------------
+# 4. 建立工作目錄
+# -------------------------------------------------
+RUN mkdir -p ${WORKSPACE}/hdl_ws \
+             ${WORKSPACE}/lidar_ws \
+             ${WORKSPACE}/realsense_ws
+
+# -------------------------------------------------
+# 5. 設定 Entrypoint
+# -------------------------------------------------
+COPY entrypoint.sh /root/entrypoint.sh
+RUN chmod +x /root/entrypoint.sh
+
+WORKDIR /root
+ENTRYPOINT ["/root/entrypoint.sh"]
+CMD ["bash"]

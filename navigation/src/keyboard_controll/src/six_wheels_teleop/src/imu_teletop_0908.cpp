@@ -167,7 +167,7 @@ TeleopKeyboard::TeleopKeyboard() :
     last_imu_time_(0),
     last_motion_time_(0)
 {
-    private_nh_.param<std::string>("save_filename", filename_, "/home/systemlabagx/disk/0908_test.csv");
+    private_nh_.param<std::string>("save_filename", filename_, "/root/0908_test.csv");
     
     // Open file once
     ofs.open(filename_, std::ios::app);
