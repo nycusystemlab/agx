@@ -33,7 +33,7 @@ services:
       # 如果您的原始碼在 ~/disk/realsense_ws/src，請修改左邊路徑
       # 範例： - /home/User/disk/realsense_ws/src:/root/realsense_ws/src
       - ./navigation/src/realsense_ws/src:/root/realsense_ws/src
-      - ./navigation/src/keyboard_control/src:/root/keyboard_control/src
+      - ./navigation/src/keyboard_control_ws/src:/root/keyboard_control_ws/src
 
     entrypoint: ["/root/entrypoint.sh"]
     tty: true
