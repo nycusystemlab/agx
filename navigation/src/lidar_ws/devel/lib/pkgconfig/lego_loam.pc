@@ -1,8 +1,0 @@
-prefix=/home/systemlabagx/lidar_ws/devel
-
-Name: lego_loam
-Description: Description of lego_loam
-Version: 1.0.0
-Cflags: -I/home/systemlabagx/lidar_ws/src/LeGO-LOAM/LeGO-LOAM/include -I/usr/local/include/pcl-1.12
-Libs: -L${prefix}/lib 
-Requires: cloud_msgs

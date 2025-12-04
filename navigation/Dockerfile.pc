@@ -69,9 +69,9 @@ RUN git clone -b v2.48.0 https://github.com/IntelRealSense/librealsense.git /tmp
 # -------------------------------------------------
 # 4. 建立工作目錄
 # -------------------------------------------------
-RUN mkdir -p ${WORKSPACE}/hdl_ws/src \
-             ${WORKSPACE}/lidar_ws/src \
-             ${WORKSPACE}/realsense_ws/src
+RUN mkdir -p ${WORKSPACE}/hdl_ws \
+             ${WORKSPACE}/lidar_ws \
+             ${WORKSPACE}/realsense_ws
 
 # -------------------------------------------------
 # 5. 設定 Entrypoint
