@@ -57,7 +57,8 @@ RUN git clone -b v2.48.0 https://github.com/IntelRealSense/librealsense.git /tmp
 # -------------------------------------------------
 RUN mkdir -p ${WORKSPACE}/hdl_ws/src \
              ${WORKSPACE}/lidar_ws/src \
-             ${WORKSPACE}/realsense_ws/src
+             ${WORKSPACE}/realsense_ws/src \
+             ${WORKSPACE}/keyboard_control_ws/src
 
 # -------------------------------------------------
 # 5. 設定 Entrypoint
