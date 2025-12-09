@@ -41,7 +41,7 @@ RUN apt-get update && apt-get install -y \
 # -------------------------------------------------
 # 2. 安裝 GTSAM
 # -------------------------------------------------
-# PC 版容器 (Ubuntu 20.04) 支援 PPA，這裡保持不變
+# PC 版容器 (Ubuntu 20.04) 支援 PPA，保持不變
 # -------------------------------------------------
 RUN add-apt-repository -y ppa:borglab/gtsam-release-4.1 && \
     apt-get update && \
