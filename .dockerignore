@@ -1,0 +1,5 @@
+**/build/
+**/devel/
+**/install/
+.git/
+**/src/CMakeLists.txt

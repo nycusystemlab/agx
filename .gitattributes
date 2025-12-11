@@ -1,0 +1,10 @@
+# 強制所有文字檔案在 checkout 到硬碟時都保持 LF 格式
+# 這對於 Docker Volume 掛載至關重要
+* text=auto eol=lf
+
+# 特別指定腳本類檔案必須是 LF
+*.sh text eol=lf
+*.bash text eol=lf
+*.py text eol=lf
+Dockerfile text eol=lf
+*.yaml text eol=lf

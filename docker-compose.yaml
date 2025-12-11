@@ -1,0 +1,114 @@
+services:
+  # =========================================
+  # 1. ROS 1 底層控制 (control)
+  # =========================================
+  control:
+    platform: ${ARCH:-linux/amd64}
+    build:
+      context: ./control
+      dockerfile: Dockerfile
+    image: agx_ros/control
+    # [修改] 名稱優化
+    container_name: control
+    networks:
+      - ros_net
+    ports:
+      - "2368:2368/udp"  # LiDAR 點雲資料
+      - "8308:8308/udp"  # LiDAR 狀態資料 (選用)
+    privileged: true
+    environment:
+      # [修改] Master 指向自己 (新名稱)
+      - ROS_MASTER_URI=http://control:11311
+      # [修改] Hostname 優化
+      - ROS_HOSTNAME=control
+      - DISPLAY=${DISPLAY}
+    volumes:
+      - /tmp/.X11-unix:/tmp/.X11-unix:rw
+    entrypoint: ["/root/entrypoint.sh"]
+    tty: true
+    stdin_open: true
+
+  # =========================================
+  # 2. ROS 1 <-> ROS 2 橋樑 (Bridge)
+  # =========================================
+  bridge:
+    platform: ${ARCH:-linux/amd64}
+    build:
+      context: ./bridge
+      dockerfile: Dockerfile
+    image: agx_ros/bridge:latest
+    # [修改] 名稱優化
+    container_name: bridge
+    
+    restart: on-failure
+    
+    networks:
+      - ros_net
+    
+    environment:
+      # [修改] 指向新的 Control 容器名稱
+      - ROS_MASTER_URI=http://control:11311
+      # [修改] Hostname 優化
+      - ROS_HOSTNAME=bridge
+      - ROS_DOMAIN_ID=0     
+    
+    tty: true
+    stdin_open: true
+  
+    command: >
+      bash -c "source /opt/ros/noetic/setup.bash &&
+               source /opt/ros/foxy/setup.bash &&
+               echo 'Waiting for ROS 1 Master...' &&
+               until rostopic list > /dev/null 2>&1; do
+                 echo 'Master not ready, sleeping...'
+                 sleep 2
+               done &&
+               echo 'ROS 1 Master is ready! Starting Bridge...' &&
+               ros2 run ros1_bridge dynamic_bridge --bridge-all-1to2-topics --bridge-all-2to1-topics"
+
+  # =========================================
+  # 3. ROS 2 高階規劃 (Planning)
+  # =========================================
+  planning:
+    platform: ${ARCH:-linux/amd64}
+    build:
+      context: ./planning
+      dockerfile: Dockerfile
+    image: agx_ros/planning:latest
+    # [修改] 名稱優化
+    container_name: planning
+    networks:
+      - ros_net
+    privileged: true
+    environment:
+      - ROS_DOMAIN_ID=0
+      # [修改] Hostname 優化
+      - ROS_HOSTNAME=planning
+      - DISPLAY=${DISPLAY}
+    tty: true
+    stdin_open: true
+
+  # =========================================
+  # 4. 資料視覺化 (Foxglove)
+  # =========================================
+  visualization:
+    platform: ${ARCH:-linux/amd64}
+    build:
+      context: ./foxglove
+      dockerfile: Dockerfile
+    image: agx_ros/visualization:latest
+    # [修改] 名稱優化
+    container_name: foxglove
+    networks:
+      - ros_net
+    ports:
+      - "8765:8765"
+    environment:
+      - ROS_DOMAIN_ID=0
+      # [修改] Hostname 優化
+      - ROS_HOSTNAME=foxglove
+    restart: unless-stopped
+
+networks:
+  ros_net:
+    driver: bridge
