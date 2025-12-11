@@ -46,10 +46,17 @@ build_workspace() {
 
         # Source 環境
         if [ -f "$setup_file" ]; then
+            # 1. 載入到當前腳本環境 (依序執行，這裡不需要 extend)
             source $setup_file
-            # 將 source 加入 .bashrc 以便進入 bash 時也能生效
-            if ! grep -Fxq "source $setup_file" $BASHRC_FILE; then
-                echo "source $setup_file" >> $BASHRC_FILE
+            
+            # 2. 將 source 加入 .bashrc，並加上 --extend 防止覆蓋
+            # 定義我們要寫入的指令字串
+            local source_cmd="source $setup_file --extend"
+            
+            # 檢查 .bashrc 是否已經有這行，沒有才加
+            if ! grep -Fxq "$source_cmd" $BASHRC_FILE; then
+                echo "$source_cmd" >> $BASHRC_FILE
+                echo "   -> Added to .bashrc with --extend"
             fi
         fi
     else
@@ -58,8 +65,9 @@ build_workspace() {
 }
 
 # -------------------------------------------------
-# 1. Source System ROS & Setup .bashrc
+# 1. Source System ROS & Setup .bashrc (基底環境)
 # -------------------------------------------------
+# 這是最底層的 ROS，不需要 --extend
 source /opt/ros/${ROS_DISTRO}/setup.bash
 
 if ! grep -Fxq "source /opt/ros/${ROS_DISTRO}/setup.bash" $BASHRC_FILE; then
@@ -67,11 +75,11 @@ if ! grep -Fxq "source /opt/ros/${ROS_DISTRO}/setup.bash" $BASHRC_FILE; then
 fi
 
 # -------------------------------------------------
-# 2. 依序處理所有工作空間
+# 2. 依序處理所有工作空間 (會自動堆疊)
 # -------------------------------------------------
 
-# (A) Keyboard Control Workspace
-build_workspace "${WORKSPACE}/keyboard_control_ws" "catkin_make"
+# (A) HDL Workspace
+build_workspace "${WORKSPACE}/hdl_ws" "catkin_make"
 
 # (B) LiDAR Workspace
 build_workspace "${WORKSPACE}/lidar_ws" "catkin_make_isolated"
@@ -79,12 +87,14 @@ build_workspace "${WORKSPACE}/lidar_ws" "catkin_make_isolated"
 # (C) Realsense Workspace
 build_workspace "${WORKSPACE}/realsense_ws" "catkin_make"
 
-# (D) HDL Workspace
-build_workspace "${WORKSPACE}/hdl_ws" "catkin_make"
+# (D) Keyboard Control Workspace
+build_workspace "${WORKSPACE}/keyboard_control_ws" "catkin_make"
+
 
 # -------------------------------------------------
 # 3. 執行指令
 # -------------------------------------------------
+# 為了確保當前 session 變數完全正確，最後再一次 source .bashrc
 source $BASHRC_FILE
 
 echo "=== Environment ready ==="

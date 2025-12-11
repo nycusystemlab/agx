@@ -31,6 +31,7 @@ RUN apt-get update && apt-get install -y \
     ros-${ROS_DISTRO}-diagnostic-updater ros-${ROS_DISTRO}-image-transport \
     ros-${ROS_DISTRO}-ddynamic-reconfigure ros-${ROS_DISTRO}-rgbd-launch \
     ros-${ROS_DISTRO}-rosserial-python \
+    ros-${ROS_DISTRO}-imu-tools \
     libssl-dev libusb-1.0-0-dev libudev-dev pkg-config libpcap-dev \
     software-properties-common \
     && rm -rf /var/lib/apt/lists/*

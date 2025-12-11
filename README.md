@@ -37,7 +37,7 @@ agx_ros/
 ├── docker-compose.yaml         # Core Configuration (Services & Networks)
 ├── docker-compose.override.yml # Dev Mode Config Example (Volume Mounts)
 ├── .env.agx                    # AGX Env Vars Example (Arch & IP Settings)
-├── navigation/                 # [ROS 1] Control Service
+├── control/                    # [ROS 1] Control Service
 │   ├── Dockerfile              # Multi-Arch (x86/ARM64) support
 │   ├── entrypoint.sh           # Smart entrypoint (Detects Dev/Prod mode)
 │   └── src/                    # Source code: hdl_graph_slam, velodyne_driver, etc.
@@ -179,10 +179,5 @@ If you want to deploy code from your own PC to the AGX, follow these steps:
     ssh-copy-id systemlabagx@<AGX_IP>
     ```
 
-3.  **Verify**:
-    You should be able to login without a password:
-    ```bash
-    ssh systemlabagx@<AGX_IP>
-    ```
 
 **Maintainer**: NYCUSystemLab
