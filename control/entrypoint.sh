@@ -5,7 +5,6 @@ set -eo pipefail
 ROS_DISTRO=${ROS_DISTRO:-noetic}
 WORKSPACE=/root
 BASHRC_FILE="${WORKSPACE}/.bashrc"
-# [新增] 預設開啟 roscore，也可以透過 docker-compose environment 設為 false 關閉
 AUTO_ROSCORE=${AUTO_ROSCORE:-true}
 
 echo "========================================="
@@ -27,22 +26,48 @@ build_workspace() {
             setup_file="${ws_path}/devel_isolated/setup.bash"
         fi
 
+        # [修改點] 建立一個 flag 來決定是否編譯
+        local need_compile="false"
+
         if [ ! -f "$setup_file" ]; then
-            echo ">>> $(basename $ws_path) not built (Dev Mode detected). Building now..."
+            echo "   -> No build artifacts found (Clean build)."
+            need_compile="true"
+        else
+            # 偵測變更核心邏輯：
+            # 尋找 src 內比 setup_file 還要新的檔案，只要找到一個 (-print -quit) 就停止
+            # 注意：這裡假設 setup.bash 的時間戳代表了上次編譯完成的時間
+            local changed_files=$(find "${ws_path}/src" -type f -newer "$setup_file" -print -quit)
             
+            if [ -n "$changed_files" ]; then
+                echo "   -> Source code change detected ($changed_files)."
+                need_compile="true"
+            else
+                echo "   -> Up-to-date. Skipping compilation."
+                need_compile="false"
+            fi
+        fi
+
+        # 執行編譯
+        if [ "$need_compile" == "true" ]; then
+            echo ">>> Building $(basename $ws_path)..."
+
+            # 處理 catkin_make 的 CMakeLists 連結問題
             if [ "$build_type" == "catkin_make" ] && [ -f "${ws_path}/src/CMakeLists.txt" ]; then
-                echo "   -> Removing potential broken CMakeLists.txt symlink..."
-                rm "${ws_path}/src/CMakeLists.txt"
+                # 只有當檔案是連結且斷掉時才刪除，或者直接防禦性刪除
+                # 這裡保留原本邏輯，但在 catkin_make 前執行很安全
+                if [ -L "${ws_path}/src/CMakeLists.txt" ]; then
+                     rm "${ws_path}/src/CMakeLists.txt"
+                fi
             fi
 
             cd ${ws_path}
+            # 執行編譯指令
             $build_type -j$(nproc)
-        else
-            echo ">>> $(basename $ws_path) already built. Skipping compilation."
         fi
 
+        # 設定環境變數 (無論是否這次有編譯，只要檔案存在就要 source)
         if [ -f "$setup_file" ]; then
-            # 1. 載入到當前腳本環境 (這對接下來啟動 roscore 很重要)
+            # 1. 載入到當前腳本環境
             source $setup_file
             
             # 2. 寫入 .bashrc
@@ -82,18 +107,15 @@ if [ "$AUTO_ROSCORE" = "true" ]; then
     echo "   Starting Local Roscore"
     echo "-----------------------------------------"
     
-    # 在背景啟動 roscore
     roscore &
     ROSCORE_PID=$!
     
-    # 等待 roscore 初始化 (最多等待 10 秒)
     echo "Waiting for roscore to initialize..."
     TIMEOUT=10
     COUNT=0
     until rostopic list > /dev/null 2>&1; do
         if [ "$COUNT" -ge "$TIMEOUT" ]; then
             echo "!!! Timeout waiting for roscore !!!"
-            # 即使超時也不退出，讓使用者可以進入容器 debug
             break 
         fi
         sleep 1
@@ -111,9 +133,7 @@ source $BASHRC_FILE
 echo "=== Environment ready ==="
 
 if [ $# -gt 0 ]; then
-    # 使用 exec 替換進程，確保訊號傳遞正常
     exec "$@"
 else
-    # 如果沒有指令，預設進入 bash
     exec bash
 fi
