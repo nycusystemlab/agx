@@ -56,7 +56,9 @@ RUN pip3 install --no-cache-dir \
     "tensorboard" \
     "filterpy" \
     "squaternion" \
-    "setuptools"
+    "setuptools" \
+    "onnxruntime" \
+    "pyyaml"
 
 # =======================================================
 # 5. 編譯程式碼

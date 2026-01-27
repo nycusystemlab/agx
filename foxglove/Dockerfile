@@ -17,17 +17,20 @@ RUN apt-get update || true && \
     apt-get install -y curl gnupg2 lsb-release && \
     curl -sSL https://raw.githubusercontent.com/ros/rosdistro/master/ros.key -o /usr/share/keyrings/ros-archive-keyring.gpg
 
-# [安裝 Foxglove & 基礎工具]
-# 加入 ros-base 以確保有 CLI 工具
+# [安裝 Foxglove & 基礎工具 & Cyclone DDS]
+# 關鍵修改：加入了 ros-${ROS_DISTRO}-rmw-cyclonedds-cpp
 RUN apt-get update && apt-get install -y \
     ros-${ROS_DISTRO}-ros-base \
     ros-${ROS_DISTRO}-foxglove-bridge \
+    ros-${ROS_DISTRO}-rmw-cyclonedds-cpp \
     net-tools \
     iputils-ping \
     && rm -rf /var/lib/apt/lists/*
 
 # 設定環境
 RUN echo "source /opt/ros/${ROS_DISTRO}/setup.bash" >> /root/.bashrc
+
+ENV RMW_IMPLEMENTATION=rmw_cyclonedds_cpp
 
 EXPOSE 8765
 
