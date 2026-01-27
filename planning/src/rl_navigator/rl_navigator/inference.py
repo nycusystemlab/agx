@@ -20,13 +20,13 @@ from collections import deque
 import sys
 import os
 import time
+import yaml
+import onnxruntime as ort
 
 # 數學工具
-from squaternion import Quaternion
-from stable_baselines3 import PPO
+from squaternion import Quaternion 
 from filterpy.kalman import KalmanFilter 
-import pickle
-from stable_baselines3.common.vec_env import VecNormalize
+
 
 # ====================================================================
 # [路徑修正] 自動搜尋 ppo_nn.py
@@ -35,16 +35,6 @@ from stable_baselines3.common.vec_env import VecNormalize
 current_dir = os.path.dirname(os.path.abspath(__file__))
 if current_dir not in sys.path:
     sys.path.append(current_dir)
-
-try:
-    # 嘗試導入自定義網路結構
-    # 如果你的 ppo_nn.py 定義了 PPOTorchModel，請確保檔案在同目錄
-    from ppo_nn import PPOTorchModel
-except ImportError:
-    try:
-        from rl_navigator.ppo_nn import PPOTorchModel
-    except ImportError:
-        print(f"⚠️ Warning: Could not import PPOTorchModel. If you are using a custom policy, this will fail.")
 
 # =====================
 # Constants
@@ -69,54 +59,36 @@ class RLInferenceNode(Node):
     def __init__(self):
         super().__init__('rl_inference_node')
         
-        # 1. 載入模型 (動態絕對路徑)
-        # 指向我們剛剛轉換好的 NumPy 1.x 相容模型
+        # 1. 設定路徑, 載入模型 (動態絕對路徑) 
         home_dir = os.path.expanduser("~")
-        model_path = os.path.join(home_dir, "ros2_ws/src/models/best_model_1x.zip")
-        self.get_logger().info(f"Loading model from {model_path}...")
+        base_path = os.path.join(home_dir, "ros2_ws/src/models")
+        onnx_path = os.path.join(base_path, "ugv_policy_actor.onnx")
+        yaml_path = os.path.join(base_path, "policy_vecnormalize.yaml")
         
+        # 2. 載入ONNX Session
         try:
-            # 載入模型 (若有 custom_objects 需傳入)
-            if 'PPOTorchModel' in globals():
-                 self.model = PPO.load(model_path, custom_objects={"policy_class": PPOTorchModel})
-            else:
-                 self.model = PPO.load(model_path)
-            self.get_logger().info("✅ Model loaded successfully!")
+            self.session = ort.InferenceSession(onnx_path, providers=['CPUExecutionProvider'])
+            self.get_logger().info(f"✅ ONNX Model loaded from {onnx_path}")
         except Exception as e:
-            self.get_logger().error(f"Failed to load model: {e}")
-            self.model = None
+            self.get_logger().error(f"Failed to load ONNX: {e}")
+            self.session = None
 
-        # =========================================================
-        # [VecNormalize] 
-        # =========================================================
-        vecnorm_path = os.path.join(home_dir, "ros2_ws/src/models/vecnorm.pkl")
-
-        if os.path.exists(vecnorm_path):
-            with open(vecnorm_path, "rb") as f:
-                self.vecnorm = pickle.load(f)
-
-            # ❗非常重要：demo / inference 設定
-            self.vecnorm.training = False
-            self.vecnorm.norm_reward = False
-
-            self.get_logger().info("✅ VecNormalize loaded (frozen inference mode).")
-        else:
-            self.vecnorm = None
-            self.get_logger().warn("⚠️ VecNormalize pkl not found, running WITHOUT normalization!")
-
-
-
-
-
+        # 3. 載入 YAML 標準化參數
+        try:
+            with open(yaml_path, 'r') as f:
+                config = yaml.safe_load(f)['vecnormalize']
+            self.norm_mean = np.array(config['mean'], dtype=np.float32)
+            self.norm_std = np.array(config['std'], dtype=np.float32)
+            self.clip_obs = config.get('clip_obs', 10.0)
+            self.get_logger().info(f"✅ YAML Normalization parameters (5411 dims) loaded.")
+        except Exception as e:
+            self.get_logger().error(f"Failed to load YAML: {e}")
+            self.norm_mean = None
 
         # 2. 初始化模組
         self.lock = threading.Lock()
-        self.raw = {"odom": None, "imu": None, "lidar": None, "mobile": None}
-        
-        # self.flow_tracker = FlowAidedDynamicTracker(H=VERTICAL_LINES, min_len=4)
-        
+        self.raw = {"odom": None, "imu": None, "lidar": None, "mobile": None}        
         self.distance_map = np.full((VERTICAL_LINES, HORIZONTAL, 1), LIDAR_MAX_OBSDIS, np.float32)
-        self.fmap_xy = np.zeros((VERTICAL_LINES, HORIZONTAL, 2), np.float32)
         self.lidar_history = deque(maxlen=3)
         self.min_laser = 5.0 # 初始給較遠值
         for _ in range(3):
@@ -125,22 +97,15 @@ class RLInferenceNode(Node):
         # =========================================================
         # [FilterPy] 狀態估計
         # =========================================================
-        self.kf = KalmanFilter(dim_x=6, dim_z=6)
-        self.kf.x = np.zeros(6)
-        self.kf.F = np.eye(6)
-        self.kf.H = np.eye(6)
-        self.kf.P *= 1.0
-        self.kf.Q = np.eye(6) * 0.05
-        self.kf.R = np.eye(6) * 0.8
+        self.kf = self._init_kalman()
         
         self.odom_x = self.odom_y = self.odom_yaw = 0.0
         self.odom_roll = self.odom_pitch = 0.0
         self.sensor_height = 0.0
         self.imu_xy = 0.0
         self.mobile = np.zeros(2, np.float32)
-        self.latest_dyna_reward = 0.0
         
-        # 目標點 (測試用)
+        """# 目標點 (測試用)"""
         self.stage_goal = [(3.0, -0.5, 0.04)] 
 
         # 3. ROS 2 通訊介面
@@ -161,6 +126,15 @@ class RLInferenceNode(Node):
 
         self.get_logger().info("RL Inference Node (Full Feature + FilterPy) Started!")
 
+    def _init_kalman(self):
+        kf = KalmanFilter(dim_x=6, dim_z=6)
+        kf.x = np.zeros(6)
+        kf.F = np.eye(6)
+        kf.H = np.eye(6)
+        kf.P *= 1.0
+        kf.Q = np.eye(6) * 0.05
+        kf.R = np.eye(6) * 0.8
+        return kf
     # ==========================
     # Callbacks
     # ==========================
@@ -209,21 +183,42 @@ class RLInferenceNode(Node):
         self.process_lidar_and_track(lid_msg)
 
         # 3. 準備 Observation
-        obs = self.get_observation()
+        obs, dist_to_goal= self.get_observation()
 
-        # 4. 模型推論
-        if self.model:
-            action, _ = self.model.predict(obs, deterministic=True)
-            
-            cmd = Twist()
-            cmd.linear.x = float(max(0, action[0] * 0.9))
-            cmd.angular.z = float(np.clip(action[1], -W_MAX, W_MAX))
+        # A. 拼接成 5411 維 (與訓練時對齊)
+        obs_combined = np.concatenate([obs["lidar"].flatten(), obs["state"].flatten()])
 
-            if self.min_laser <= 0.2:
+        # B. 標準化與裁切（使用YAML參數）
+        obs_norm = np.clip((obs_combined - self.norm_mean) / (self.norm_std + 1e-8), -self.clip_obs, self.clip_obs)
+
+        # C. 拆分回 ONNX 需要的輸入格式
+        # 假設 ONNX 輸入名為 "lidar" 與 "state"
+        lidar_input = obs_norm[:5400].reshape(1, 180, 10, 3).astype(np.float32)
+        state_input = obs_norm[5400:].reshape(1, 11).astype(np.float32)
+
+        # 4. ONNX 推論
+        onnx_inputs = {"lidar": lidar_input, "state": state_input}
+        action_outputs = self.session.run(None, onnx_inputs) # None 代表獲取所有輸出，或指定 ["action"]
+        action = np.clip(action_outputs[0][0], -1.0, 1.0)
+
+        # 5. 發佈速度指令
+        cmd = Twist()
+        cmd.linear.x = float(max(0, action[0] * 0.9))
+        cmd.angular.z = float(np.clip(action[1], -W_MAX, W_MAX))
+
+        if self.min_laser <= 0.2: # 安全停止距離
                 cmd.linear.x = 0.0
                 cmd.angular.z = 0.0
-
+        
+        if dist_to_goal < 0.5:   # 到達目標點
+            self.get_logger().info("🎯 Goal Reached!")
+            cmd = Twist() # 停止機器人
+            cmd.linear.x = 0.0
+            cmd.angular.z = 0.0
             self.vel_pub.publish(cmd)
+            return # 跳過後續的模型推論
+
+        self.vel_pub.publish(cmd)
 
     def process_lidar_and_track(self, lid_msg):
         # ROS 2 讀取點雲
@@ -242,7 +237,6 @@ class RLInferenceNode(Node):
         # FOV Filtering
         mask = (betas >= -FRONT_FOV_RAD/2) & (betas < FRONT_FOV_RAD/2) & (thetas > -3*np.pi/180)
         x, y, dists, betas, thetas = x[mask], y[mask], dists[mask], betas[mask], thetas[mask]
-
         if dists.size == 0: return
 
         # Grid Mapping
@@ -266,7 +260,6 @@ class RLInferenceNode(Node):
         f_xy[j_s[first_idx], k_s[first_idx], 1] = y_s[first_idx]
 
         self.distance_map = fmap[:, Z_INGNORE:, :]
-        self.fmap_xy = f_xy[:, Z_INGNORE:, :]
         self.lidar_history.append(self.distance_map.copy())
         self.min_laser = float(np.min(self.distance_map[:, :, 0]))
 
@@ -294,22 +287,11 @@ class RLInferenceNode(Node):
         ], dtype=np.float32)
 
         lidar_stack = np.concatenate(list(self.lidar_history), axis=2)
-        
-        # =========================================================
-        # VecNormalize (state only, frozen)
-        # =========================================================
-        if self.vecnorm is not None:
-            # 這裡假設 VecNormalize 的 obs_rms 前 STATE_DIM 維是 state
-            mean = self.vecnorm.obs_rms.mean[:STATE_DIM]
-            var  = self.vecnorm.obs_rms.var[:STATE_DIM]
-            state = (state - mean) / np.sqrt(var + 1e-8)
-
-
-
+    
         return {
             "lidar": lidar_stack, 
-            "state_current": state
-        }
+            "state": state
+        }, dist_to_goal
 
 def main(args=None):
     rclpy.init(args=args)
