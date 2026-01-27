@@ -18,7 +18,7 @@ services:
       - XAUTHORITY=/tmp/.docker.xauth
     volumes:
       - /dev:/dev
-      - /etc/localtime:/etc/localtime:ro # 同步主機時間
+      - /etc/localtime:/etc/localtime:ro
       - /etc/timezone:/etc/timezone:ro
       - /tmp/.X11-unix:/tmp/.X11-unix:rw
       - /tmp/.docker.xauth:/tmp/.docker.xauth:rw
@@ -43,6 +43,9 @@ services:
       - ROS_MASTER_URI=http://${HOST_IP}:11311
       - ROS_HOSTNAME=${HOST_IP}
       - ROS_DOMAIN_ID=0     
+    volumes:  
+      - /etc/localtime:/etc/localtime:ro
+      - /etc/timezone:/etc/timezone:ro
     tty: true
     stdin_open: true
     command: >
@@ -59,14 +62,12 @@ services:
       dockerfile: Dockerfile
     image: agx_ros/planning:latest
     container_name: planning
-    # profiles: ["agx_mode"] 
+    # runtime: nvidia  <-- [移除] 移至 override
     network_mode: host
     privileged: true
-    runtime: nvidia
     
     environment:
-      - NVIDIA_VISIBLE_DEVICES=all
-      - NVIDIA_DRIVER_CAPABILITIES=all
+      # NVIDIA 變數移至 override，保留通用變數
       - ROS_DOMAIN_ID=0
       - RMW_IMPLEMENTATION=rmw_cyclonedds_cpp
       - ROS_HOSTNAME=${HOST_IP}
@@ -75,7 +76,7 @@ services:
     
     volumes:
       - /dev:/dev
-      - /run/jtop.stats.sock:/run/jtop.stats.sock 
+      # jtop socket 移至 override
       - /etc/localtime:/etc/localtime:ro 
       - /etc/timezone:/etc/timezone:ro
       - /tmp/.X11-unix:/tmp/.X11-unix:rw
@@ -97,6 +98,10 @@ services:
     environment:
       - ROS_DOMAIN_ID=0
       - ROS_HOSTNAME=${HOST_IP}
+      - RMW_IMPLEMENTATION=rmw_cyclonedds_cpp
+    volumes:  
+      - /etc/localtime:/etc/localtime:ro
+      - /etc/timezone:/etc/timezone:ro
     restart: unless-stopped
     command: >
       /bin/bash -c "source /opt/ros/humble/setup.bash &&
@@ -114,18 +119,17 @@ services:
     profiles: ["agx_mode"]
     network_mode: host
     environment:
-      - NVIDIA_VISIBLE_DEVICES=all
-      - NVIDIA_DRIVER_CAPABILITIES=all
+      # NVIDIA 變數移至 override
       - ROS_DOMAIN_ID=0
       - RMW_IMPLEMENTATION=rmw_cyclonedds_cpp
       - ISAAC_ROS_WS=/workspaces/isaac_ros-dev
       - DISPLAY=${DISPLAY}
       - XAUTHORITY=/tmp/.docker.xauth
     privileged: true
-    runtime: nvidia
+    # runtime: nvidia <-- [移除]
     volumes:
       - /dev:/dev
-      - /run/jtop.stats.sock:/run/jtop.stats.sock
+      # jtop socket 移至 override
       - /etc/localtime:/etc/localtime:ro
       - /etc/timezone:/etc/timezone:ro
       - /tmp/.X11-unix:/tmp/.X11-unix:rw

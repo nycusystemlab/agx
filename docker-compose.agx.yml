@@ -1,0 +1,16 @@
+services:
+  planning:
+    runtime: nvidia
+    environment:
+      - NVIDIA_VISIBLE_DEVICES=all
+      - NVIDIA_DRIVER_CAPABILITIES=all
+    volumes:
+      - /run/jtop.stats.sock:/run/jtop.stats.sock
+
+  isaac_ros:
+    runtime: nvidia
+    environment:
+      - NVIDIA_VISIBLE_DEVICES=all
+      - NVIDIA_DRIVER_CAPABILITIES=all
+    volumes:
+      - /run/jtop.stats.sock:/run/jtop.stats.sock

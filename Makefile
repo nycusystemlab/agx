@@ -11,33 +11,40 @@ SERVICE_NAME   ?= control
 export DOCKER_BUILDKIT=1
 export COMPOSE_DOCKER_CLI_BUILD=1
 
-# --- [Auto-Detection] ---
+# --- [Auto-Detection & Multi-File Config] ---
 CURRENT_CONTEXT := $(shell docker context show)
 MODE := pc
 ENV_FILE := .env
+# 預設只載入基礎檔案 (PC 通用)
+COMPOSE_FILES := -f docker-compose.yaml
 
+# 偵測是否為 AGX 環境 (透過 Context 名稱或 CPU 架構)
 ifneq (,$(findstring agx,$(CURRENT_CONTEXT)))
     MODE := agx
     ENV_FILE := .env.agx
+    # AGX 模式下，追加載入 AGX 專用覆蓋檔 (Overlay)
+    COMPOSE_FILES += -f docker-compose.agx.yml
 else ifeq ($(shell uname -m), aarch64)
     MODE := agx
     ENV_FILE := .env.agx
+    COMPOSE_FILES += -f docker-compose.agx.yml
 endif
 
-COMPOSE_CMD := docker compose --env-file $(ENV_FILE) -p $(PROJECT_NAME)
+# 組合最終指令
+COMPOSE_CMD := docker compose $(COMPOSE_FILES) --env-file $(ENV_FILE) -p $(PROJECT_NAME)
 TASK_EXEC   := docker exec -it $(TASK_CONTAINER) bash -ic
 
 # --- [Make Settings] ---
 .DEFAULT_GOAL := help
-# 全域靜音：不用在每個指令前加 @
+# 全域靜音：隱藏指令回顯，保持輸出乾淨
 .SILENT:
-.PHONY: help build up rebuild down join logs ps clean run stop view guard-%
+.PHONY: help build up rebuild down join logs ps clean run stop view guard-% fix-time
 
 # ==============================================================================
 #  Logic Definitions (Shell Scripts inside Makefile)
 # ==============================================================================
 
-# 1. RUN SCRIPT (優化點：使用 define 移除行尾的反斜線)
+# 1. RUN SCRIPT (任務啟動選單)
 define SCRIPT_RUN
     echo "=========================================="
     echo " AGX Task Launcher"
@@ -89,8 +96,9 @@ define SCRIPT_RUN
 endef
 export SCRIPT_RUN
 
-# 2. JOIN SCRIPT
+# 2. JOIN SCRIPT (互動式進入容器)
 define SCRIPT_JOIN
+    # Filter containers by project label
     LIST=$$(docker ps --filter "label=com.docker.compose.project=$(PROJECT_NAME)" --format "{{.Names}}" || true)
     if [ -z "$$LIST" ]; then echo "[Info] No project containers are running."; exit 0; fi
     echo "=========================================="
@@ -111,7 +119,7 @@ define SCRIPT_JOIN
 endef
 export SCRIPT_JOIN
 
-# 3. STOP SCRIPT
+# 3. STOP SCRIPT (優雅停止：發送 SIGINT)
 define SCRIPT_STOP
     LIST=$$(tmux ls -F "#{session_name}" 2>/dev/null | grep "^agx_" || true)
     if [ -z "$$LIST" ]; then echo "[Info] No active tasks running."; exit 0; fi
@@ -124,13 +132,36 @@ define SCRIPT_STOP
     echo "------------------------------------------"
     read -p "Enter number: " k_choice
     if [ "$$k_choice" = "q" ]; then exit 0; fi
-    if [ "$$k_choice" = "a" ]; then echo "$$LIST" | xargs -n 1 tmux kill-session -t; echo "[Info] All tasks terminated."; exit 0; fi
+
+    # Stop function
+    do_stop() {
+        local s_name=$$1
+        echo "[Info] Stopping $$s_name..."
+        # Send Ctrl+C to all panes to allow graceful shutdown of ROS nodes
+        tmux list-panes -t "$$s_name" -F "#{pane_id}" | xargs -I {} tmux send-keys -t {} C-c
+        sleep 1
+        # Kill session
+        tmux kill-session -t "$$s_name" 2>/dev/null || true
+        echo "[Info] $$s_name terminated."
+    }
+    export -f do_stop
+
+    if [ "$$k_choice" = "a" ]; then
+        echo "$$LIST" | xargs -I {} bash -c "do_stop {}"
+        echo "[Info] All tasks terminated."
+        exit 0
+    fi
+
     TARGET=$$(echo "$$LIST" | sed -n "$${k_choice}p")
-    if [ -n "$$TARGET" ]; then tmux kill-session -t "$$TARGET"; echo "[Info] $$TARGET terminated."; else echo "[Error] Invalid number."; fi
+    if [ -n "$$TARGET" ]; then
+        do_stop "$$TARGET"
+    else
+        echo "[Error] Invalid number."
+    fi
 endef
 export SCRIPT_STOP
 
-# 4. VIEW SCRIPT
+# 4. VIEW SCRIPT (查看背景任務)
 define SCRIPT_VIEW
     LIST=$$(tmux ls -F "#{session_name}" 2>/dev/null | grep "^agx_" || true)
     if [ -z "$$LIST" ]; then echo "[Info] No active tasks."; exit 0; fi
@@ -165,18 +196,24 @@ help: ## Show available commands
 	echo "   Task Target: $(TASK_CONTAINER)"
 	echo "   Context:     $(CURRENT_CONTEXT)"
 	echo "   Mode:        $(MODE)"
+	echo "   Configs:     $(COMPOSE_FILES)"
 	echo "------------------------------------------------"
 	awk 'BEGIN {FS = ":.*?## "} /^[a-zA-Z_-]+:.*?## / {printf "%-10s %s\n", $$1, $$2}' $(MAKEFILE_LIST)
 
 check-env:
 	if [ ! -f $(ENV_FILE) ]; then echo "[Error] Config file '$(ENV_FILE)' not found."; exit 1; fi
 
-# 優化點：通用檢查模式 (guard-容器名)
+# 通用容器檢查 Pattern Rule
 guard-%:
 	if [ -z "$$(docker ps -q -f name=$*)" ]; then \
 		echo "[Error] Container '$*' is not running. Run 'make up' first."; \
 		exit 1; \
 	fi
+
+fix-time: guard-$(TASK_CONTAINER) ## 🕒 Fix clock skew by touching all files in container
+	echo "[Info] Resetting file timestamps in $(TASK_CONTAINER)..."
+	docker exec -it $(TASK_CONTAINER) bash -c "find . -type f -exec touch {} +"
+	echo "[Info] Done. Clock skew should be resolved."
 
 build: check-env ## Build docker images
 	echo "[Info] Building in $(MODE) mode..."
