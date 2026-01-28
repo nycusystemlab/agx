@@ -25,12 +25,40 @@ import onnxruntime as ort
 
 # 數學工具
 from squaternion import Quaternion 
-from filterpy.kalman import KalmanFilter 
+# from filterpy.kalman import KalmanFilter  <-- [移除] 這會導致你的環境崩潰
 
+# ====================================================================
+# [關鍵修正] 內建 LiteKalmanFilter
+# 因為你的 NumPy 是 2.x，FilterPy 依賴的 SciPy 會崩潰，必須用這個取代
+# ====================================================================
+class LiteKalmanFilter:
+    def __init__(self, dim_x, dim_z):
+        self.dim_x = dim_x
+        self.dim_z = dim_z
+        self.x = np.zeros(dim_x)
+        self.P = np.eye(dim_x)
+        self.Q = np.eye(dim_x)
+        self.R = np.eye(dim_z)
+        self.F = np.eye(dim_x)
+        self.H = np.zeros((dim_z, dim_x))
+
+    def predict(self):
+        self.x = np.dot(self.F, self.x)
+        self.P = np.dot(np.dot(self.F, self.P), self.F.T) + self.Q
+
+    def update(self, z):
+        y = z - np.dot(self.H, self.x)
+        S = np.dot(np.dot(self.H, self.P), self.H.T) + self.R
+        try:
+            K = np.dot(np.dot(self.P, self.H.T), np.linalg.inv(S))
+        except np.linalg.LinAlgError:
+            return
+        self.x = self.x + np.dot(K, y)
+        I = np.eye(self.dim_x)
+        self.P = np.dot((I - np.dot(K, self.H)), self.P)
 
 # ====================================================================
 # [路徑修正] 自動搜尋 ppo_nn.py
-# 解決 ROS 2 colcon build 後找不到同目錄模組的問題
 # ====================================================================
 current_dir = os.path.dirname(os.path.abspath(__file__))
 if current_dir not in sys.path:
@@ -52,6 +80,7 @@ VERTICAL_LINES    = 180
 Z_INGNORE         = 6       
 HORIZONTAL        = ORIGINAL_SEGEMNTS - Z_INGNORE  
 STATE_DIM         = 11 
+
 # ====================================================================
 # [主節點] RL Inference Node (ROS 2)
 # ====================================================================
@@ -65,7 +94,7 @@ class RLInferenceNode(Node):
         onnx_path = os.path.join(base_path, "ugv_policy_actor.onnx")
         yaml_path = os.path.join(base_path, "policy_vecnormalize.yaml")
         
-        # 2. 載入ONNX Session
+        # 2. 載入ONNX Session (CPU Mode)
         try:
             self.session = ort.InferenceSession(onnx_path, providers=['CPUExecutionProvider'])
             self.get_logger().info(f"✅ ONNX Model loaded from {onnx_path}")
@@ -85,7 +114,7 @@ class RLInferenceNode(Node):
             self.get_logger().error(f"Failed to load YAML: {e}")
             self.norm_mean = None
 
-        # 2. 初始化模組
+        # 4. 初始化模組
         self.lock = threading.Lock()
         self.raw = {"odom": None, "imu": None, "lidar": None, "mobile": None}        
         self.distance_map = np.full((VERTICAL_LINES, HORIZONTAL, 1), LIDAR_MAX_OBSDIS, np.float32)
@@ -95,7 +124,7 @@ class RLInferenceNode(Node):
             self.lidar_history.append(np.zeros((VERTICAL_LINES, HORIZONTAL, 1), dtype=np.float32))
 
         # =========================================================
-        # [FilterPy] 狀態估計
+        # [FilterPy] 狀態估計 (改用 LiteKalmanFilter)
         # =========================================================
         self.kf = self._init_kalman()
         
@@ -105,11 +134,9 @@ class RLInferenceNode(Node):
         self.imu_xy = 0.0
         self.mobile = np.zeros(2, np.float32)
         
-        """# 目標點 (測試用)"""
         self.stage_goal = [(3.0, -0.5, 0.04)] 
 
-        # 3. ROS 2 通訊介面
-        # Best Effort 用於感測器以降低延遲
+        # 5. ROS 2 通訊介面
         qos_sensor = QoSProfile(reliability=ReliabilityPolicy.BEST_EFFORT, history=HistoryPolicy.KEEP_LAST, depth=1)
         qos_reliable = QoSProfile(reliability=ReliabilityPolicy.RELIABLE, history=HistoryPolicy.KEEP_LAST, depth=10)
 
@@ -124,10 +151,11 @@ class RLInferenceNode(Node):
         # Main Loop Timer
         self.create_timer(TIME_DELTA, self.timer_process_cb)
 
-        self.get_logger().info("RL Inference Node (Full Feature + FilterPy) Started!")
+        self.get_logger().info("RL Inference Node (CPU + LiteKalman) Started!")
 
     def _init_kalman(self):
-        kf = KalmanFilter(dim_x=6, dim_z=6)
+        # 使用內建的 LiteKalmanFilter，介面與 filterpy 完全一致
+        kf = LiteKalmanFilter(dim_x=6, dim_z=6)
         kf.x = np.zeros(6)
         kf.F = np.eye(6)
         kf.H = np.eye(6)
@@ -135,6 +163,7 @@ class RLInferenceNode(Node):
         kf.Q = np.eye(6) * 0.05
         kf.R = np.eye(6) * 0.8
         return kf
+
     # ==========================
     # Callbacks
     # ==========================
@@ -170,7 +199,6 @@ class RLInferenceNode(Node):
         self.kf.predict()
         self.kf.update(z_meas)
         
-        # 使用 filterpy 標準屬性 (.x)
         self.imu_xy = np.sqrt(self.kf.x[0]**2 + self.kf.x[1]**2)
         self.odom_roll, self.odom_pitch, self.odom_yaw = roll, -pitch, yaw
         self.odom_x, self.odom_y, self.sensor_height = od.pose.pose.position.x, od.pose.pose.position.y, od.pose.pose.position.z
@@ -179,64 +207,66 @@ class RLInferenceNode(Node):
             self.mobile[0] = mob_msg.twist.twist.linear.x
             self.mobile[1] = mob_msg.twist.twist.angular.z
 
-        # 2. LiDAR 處理 (Vectorized)
+        # 2. LiDAR 處理
         self.process_lidar_and_track(lid_msg)
 
         # 3. 準備 Observation
         obs, dist_to_goal= self.get_observation()
+        
+        if self.session is None or self.norm_mean is None:
+            return
 
-        # A. 拼接成 5411 維 (與訓練時對齊)
+        # A. 拼接
         obs_combined = np.concatenate([obs["lidar"].flatten(), obs["state"].flatten()])
 
-        # B. 標準化與裁切（使用YAML參數）
+        # B. 標準化
         obs_norm = np.clip((obs_combined - self.norm_mean) / (self.norm_std + 1e-8), -self.clip_obs, self.clip_obs)
 
-        # C. 拆分回 ONNX 需要的輸入格式
-        # 假設 ONNX 輸入名為 "lidar" 與 "state"
+        # C. 拆分
         lidar_input = obs_norm[:5400].reshape(1, 180, 10, 3).astype(np.float32)
         state_input = obs_norm[5400:].reshape(1, 11).astype(np.float32)
 
         # 4. ONNX 推論
         onnx_inputs = {"lidar": lidar_input, "state": state_input}
-        action_outputs = self.session.run(None, onnx_inputs) # None 代表獲取所有輸出，或指定 ["action"]
-        action = np.clip(action_outputs[0][0], -1.0, 1.0)
+        
+        try:
+            action_outputs = self.session.run(None, onnx_inputs)
+            action = np.clip(action_outputs[0][0], -1.0, 1.0)
+        except Exception as e:
+            self.get_logger().error(f"Inference Error: {e}")
+            return
 
         # 5. 發佈速度指令
         cmd = Twist()
         cmd.linear.x = float(max(0, action[0] * 0.9))
         cmd.angular.z = float(np.clip(action[1], -W_MAX, W_MAX))
 
-        if self.min_laser <= 0.2: # 安全停止距離
+        if self.min_laser <= 0.2: 
                 cmd.linear.x = 0.0
                 cmd.angular.z = 0.0
         
-        if dist_to_goal < 0.5:   # 到達目標點
+        if dist_to_goal < 0.5:   
             self.get_logger().info("🎯 Goal Reached!")
-            cmd = Twist() # 停止機器人
+            cmd = Twist()
             cmd.linear.x = 0.0
             cmd.angular.z = 0.0
             self.vel_pub.publish(cmd)
-            return # 跳過後續的模型推論
+            return
 
         self.vel_pub.publish(cmd)
 
     def process_lidar_and_track(self, lid_msg):
-        # ROS 2 讀取點雲
-        gen = pc2.read_points(lid_msg, skip_nans=True, field_names=("x", "y", "z"))
-        # pts = np.array(list(gen), dtype=np.float32)
+        # [優化] 直接使用 NumPy 讀取，避免迴圈錯誤
+        # pts_raw = np.array(list(pc2.read_points(lid_msg, skip_nans=True, field_names=("x", "y", "z"))))
         
+        # 使用結構化陣列讀取 (最快且不容易出錯)
+        pts_structured = pc2.read_points_numpy(lid_msg, skip_nans=True, field_names=("x", "y", "z"))
+        if pts_structured.size == 0: return
 
-        pts_raw = np.array(list(gen))
-        if pts.size == 0: return
-
-        # pts = np.zeros((len(pts_raw), 3), dtype=np.float32)
-        pts = np.empty((pts_raw.shape[0], 3), dtype=np.float32)
-        pts[:, 0] = pts_raw['x']
-        pts[:, 1] = pts_raw['y']
-        pts[:, 2] = pts_raw['z']
-
-        x, y, z = pts[:, 0], pts[:, 1], pts[:, 2]
-
+        # 這裡修復了你原本的變數錯誤
+        x = pts_structured['x']
+        y = pts_structured['y']
+        z = pts_structured['z']
 
         # 向量化計算
         xy_sq = x**2 + y**2
@@ -244,30 +274,23 @@ class RLInferenceNode(Node):
         betas = np.arctan2(y, x)
         thetas = np.arctan2(z, np.sqrt(xy_sq))
 
-        # FOV Filtering
         mask = (betas >= -FRONT_FOV_RAD/2) & (betas < FRONT_FOV_RAD/2) & (thetas > -3*np.pi/180)
         x, y, dists, betas, thetas = x[mask], y[mask], dists[mask], betas[mask], thetas[mask]
+        
         if dists.size == 0: return
 
-        # Grid Mapping
         j = ((betas + FRONT_FOV_RAD/2) * VERTICAL_LINES / FRONT_FOV_RAD).astype(np.int32)
         k = ((thetas - (ELEV_FOV_MIN*np.pi/180)) * ORIGINAL_SEGEMNTS / ((ELEV_FOV_MAX-ELEV_FOV_MIN)*np.pi/180)).astype(np.int32)
         j, k = np.clip(j, 0, VERTICAL_LINES-1), np.clip(k, 0, ORIGINAL_SEGEMNTS-1)
 
         d_clear = np.clip(dists - ROBOT_RADIUS, 0.01, LIDAR_MAX_OBSDIS)
 
-        # Lexsort 優化
         idx_sort = np.lexsort((d_clear, k, j))
         j_s, k_s, d_s = j[idx_sort], k[idx_sort], d_clear[idx_sort]
-        x_s, y_s = x[idx_sort], y[idx_sort]
         _, first_idx = np.unique(j_s * 100 + k_s, return_index=True)
 
         fmap = np.full((VERTICAL_LINES, ORIGINAL_SEGEMNTS, 1), LIDAR_MAX_OBSDIS, np.float32)
-        # f_xy = np.zeros((VERTICAL_LINES, ORIGINAL_SEGEMNTS, 2), np.float32)
-        
         fmap[j_s[first_idx], k_s[first_idx], 0] = d_s[first_idx]
-        # f_xy[j_s[first_idx], k_s[first_idx], 0] = x_s[first_idx]
-        # f_xy[j_s[first_idx], k_s[first_idx], 1] = y_s[first_idx]
 
         self.distance_map = fmap[:, Z_INGNORE:, :]
         self.lidar_history.append(self.distance_map.copy())
