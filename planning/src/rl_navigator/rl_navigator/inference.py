@@ -223,10 +223,20 @@ class RLInferenceNode(Node):
     def process_lidar_and_track(self, lid_msg):
         # ROS 2 讀取點雲
         gen = pc2.read_points(lid_msg, skip_nans=True, field_names=("x", "y", "z"))
-        pts = np.array(list(gen), dtype=np.float32)
+        # pts = np.array(list(gen), dtype=np.float32)
+        
+
+        pts_raw = np.array(list(gen))
         if pts.size == 0: return
 
+        # pts = np.zeros((len(pts_raw), 3), dtype=np.float32)
+        pts = np.empty((pts_raw.shape[0], 3), dtype=np.float32)
+        pts[:, 0] = pts_raw['x']
+        pts[:, 1] = pts_raw['y']
+        pts[:, 2] = pts_raw['z']
+
         x, y, z = pts[:, 0], pts[:, 1], pts[:, 2]
+
 
         # 向量化計算
         xy_sq = x**2 + y**2
@@ -253,11 +263,11 @@ class RLInferenceNode(Node):
         _, first_idx = np.unique(j_s * 100 + k_s, return_index=True)
 
         fmap = np.full((VERTICAL_LINES, ORIGINAL_SEGEMNTS, 1), LIDAR_MAX_OBSDIS, np.float32)
-        f_xy = np.zeros((VERTICAL_LINES, ORIGINAL_SEGEMNTS, 2), np.float32)
+        # f_xy = np.zeros((VERTICAL_LINES, ORIGINAL_SEGEMNTS, 2), np.float32)
         
         fmap[j_s[first_idx], k_s[first_idx], 0] = d_s[first_idx]
-        f_xy[j_s[first_idx], k_s[first_idx], 0] = x_s[first_idx]
-        f_xy[j_s[first_idx], k_s[first_idx], 1] = y_s[first_idx]
+        # f_xy[j_s[first_idx], k_s[first_idx], 0] = x_s[first_idx]
+        # f_xy[j_s[first_idx], k_s[first_idx], 1] = y_s[first_idx]
 
         self.distance_map = fmap[:, Z_INGNORE:, :]
         self.lidar_history.append(self.distance_map.copy())
