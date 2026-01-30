@@ -22,8 +22,9 @@ ENV DEBIAN_FRONTEND=noninteractive
 ENV WORKSPACE=/root
 
 # =======================================================
-# 3. 統一安裝依賴
+# 3. 統一安裝依賴 (加入 Foxglove Bridge)
 # =======================================================
+# 修改說明：已在下方加入 ros-${ROS_DISTRO}-foxglove-bridge
 RUN apt-get update && apt-get install -y \
     build-essential cmake git python3-catkin-tools python3-pip wget \
     ros-${ROS_DISTRO}-pcl-ros libpcl-dev \
@@ -32,6 +33,7 @@ RUN apt-get update && apt-get install -y \
     ros-${ROS_DISTRO}-ddynamic-reconfigure ros-${ROS_DISTRO}-rgbd-launch \
     ros-${ROS_DISTRO}-rosserial-python \
     ros-${ROS_DISTRO}-imu-tools \
+    ros-${ROS_DISTRO}-foxglove-bridge \
     libssl-dev libusb-1.0-0-dev libudev-dev pkg-config libpcap-dev \
     software-properties-common \
     && apt-get remove -y ros-${ROS_DISTRO}-compressed-depth-image-transport \
