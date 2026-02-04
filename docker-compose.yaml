@@ -23,6 +23,7 @@ services:
       - /tmp/.X11-unix:/tmp/.X11-unix:rw
       - /tmp/.docker.xauth:/tmp/.docker.xauth:rw
       - /home/systemlabagx/disk/Lun_RL_ws/src/six_wheels_teleop:/root/keyboard_control_ws/src/six_wheels_teleop
+      - /home/systemlabagx/disk/Lun_RL_ws/src/RL_ppo/models:/root/keyboard_control_ws/src/models
     entrypoint: ["/root/entrypoint.sh"]
     tty: true
     stdin_open: true
