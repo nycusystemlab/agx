@@ -1,0 +1,62 @@
+  services:
+  # =========================================
+  # 6. Nano LLM 服務 (含 ROS 2 Humble)
+  # 參考: https://github.com/dusty-nv/jetson-containers/tree/master/packages/llm/nano_llm
+  # 注意：container_name 改為 nanollm_compose 以避免與手動建立的 nanollm 容器衝突
+  # =========================================
+    nanollm:
+      build:
+        context: ./nanollm
+        dockerfile: Dockerfile
+      image: agx_ros/nanollm:latest
+      container_name: nanollm
+      runtime: nvidia
+      network_mode: host
+      ipc: host
+      shm_size: "8g"
+      environment:
+        - NVIDIA_VISIBLE_DEVICES=all
+        - NVIDIA_DRIVER_CAPABILITIES=compute,utility,graphics
+        - ROS_DOMAIN_ID=0
+        - ROS_HOSTNAME=localhost
+        - RMW_IMPLEMENTATION=rmw_cyclonedds_cpp
+        - DISPLAY=${DISPLAY}
+        - XAUTHORITY=/tmp/.docker.xauth
+        - PULSE_SERVER=unix:/run/user/1000/pulse/native
+      privileged: true
+      volumes:
+        # jetson-containers 預設 mounts
+        - /tmp/argus_socket:/tmp/argus_socket
+        - /etc/enctune.conf:/etc/enctune.conf
+        - /etc/nv_tegra_release:/etc/nv_tegra_release
+        - /tmp/nv_jetson_model:/tmp/nv_jetson_model
+        - /var/run/dbus:/var/run/dbus
+        - /var/run/avahi-daemon/socket:/var/run/avahi-daemon/socket
+        - /var/run/docker.sock:/var/run/docker.sock
+        # 時區與音訊
+        - /etc/localtime:/etc/localtime:ro
+        - /etc/timezone:/etc/timezone:ro
+        - /run/user/1000/pulse:/run/user/1000/pulse
+        # X11 顯示
+        - /tmp/.X11-unix:/tmp/.X11-unix:rw
+        - /tmp/.docker.xauth:/tmp/.docker.xauth:rw
+        # jtop 監控
+        - /run/jtop.sock:/run/jtop.sock
+        # 資料與模型目錄
+        - /home/systemlabagx/disk/workspaces/data:/data
+        - /home/systemlabagx/disk/workspaces/data/nanollm_models:/data/models
+        # 與 Isaac ROS 共用 workspace
+        - /home/systemlabagx/disk/workspaces:/workspaces
+      devices:
+        - /dev/snd
+        - /dev/bus/usb
+        - /dev/video0
+        - /dev/video1
+        - /dev/video2
+        - /dev/video3
+        - /dev/video4
+        - /dev/video5
+      working_dir: /data
+      stdin_open: true
+      tty: true
+      command: ["bash", "-lc", "sleep infinity"]
