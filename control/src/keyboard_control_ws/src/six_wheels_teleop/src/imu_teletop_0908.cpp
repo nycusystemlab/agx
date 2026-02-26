@@ -46,7 +46,7 @@ private:
     ros::NodeHandle nh_;
     ros::NodeHandle private_nh_;
     ros::Publisher cmd_pub_;
-    ros::Publisher imu_pub_;
+    // ros::Publisher imu_pub_;
     ros::Publisher imu_float_pub_;
 
     ros::Subscriber imu_sub_;
@@ -102,13 +102,13 @@ private:
     double pose_roll = 0.0, pose_pitch = 0.0, pose_yaw = 0.0; // 姿態角 (rad)
 
     // -------- Motion array 數據 --------
-    double motion_x_, motion_y_, motion_th_; // 運動學位置和方向
+    // double motion_x_, motion_y_, motion_th_; // 運動學位置和方向
     double motion_v_real_, velocity_cmd, omega_cmd; // 真實線速度和融合角速度
     double motion_a_real_, vl_real, vr_real, comp_L, comp_R, LLPWM, RRPWM; // 運動控制數據
     double differential_angular_v; // 差分角速度
     double low_filter_imu_acc_x, low_filter_imu_acc_y; // 低通濾波後的加速度
 
-    float power_regression_lidar = 0, power_regression_imu = 0,power_regression_imu_test = 0, power_regression = 0, power_regression_imu_test_1 = 0, power_regression_imu_test_2=0;
+    float power_regression_lidar = 0, power_regression_imu = 0, power_regression = 0;
     // -------- 角加速度和時間戳 --------
     float angular_acceleration_roll_ = 0.0f;    // Roll 軸角加速度 (rad/s^2)
     float angular_acceleration_pitch_ = 0.0f;   // Pitch 軸角加速度 (rad/s^2)
@@ -124,16 +124,16 @@ private:
     float last_motion_dt_ = 0.0f;               // Motion array 消息的時間間隔 (s)
 
     struct termios raw_, cooked_;
-    static int key_counter_;
+    // static int key_counter_;
     std::set<char> valid_keys_;
-    static bool header_written_;
+    // static bool header_written_;
 
 
     std::ofstream ofs;
 };
 
-int TeleopKeyboard::key_counter_ = 0;
-bool TeleopKeyboard::header_written_ = false;
+// int TeleopKeyboard::key_counter_ = 0;
+// bool TeleopKeyboard::header_written_ = false;
 
 TeleopKeyboard::TeleopKeyboard() : 
     private_nh_("~"), 
@@ -167,7 +167,7 @@ TeleopKeyboard::TeleopKeyboard() :
     last_imu_time_(0),
     last_motion_time_(0)
 {
-    private_nh_.param<std::string>("save_filename", filename_, "/root/0908_test.csv");
+    private_nh_.param<std::string>("save_filename", filename_, "/home/systemlabagx/disk/Lun_RL_ws/0908_test.csv");
     
     // Open file once
     ofs.open(filename_, std::ios::app);
@@ -180,7 +180,7 @@ TeleopKeyboard::TeleopKeyboard() :
                 << "imu_x,imu_y,imu_z,"
                 << "imu_filtered_x,imu_filtered_y,imu_filtered_z,"
                 << "imu_roll_rate,imu_pitch_rate,imu_yaw_rate,"
-                << "motion_x,motion_y,motion_th,"
+                // << "motion_x,motion_y,motion_th,"
                 << "motion_v_real,omega_cmd,"
                 << "motion_a_real,velocity_cmd,vl_real,vr_real,comp_L,comp_R,LLPWM,RRPWM,"
                 << "omega_a_real,omega_a_diff,differential_angular_v,low_filter_imu_acc_x,low_filter_imu_acc_y,"
@@ -191,20 +191,20 @@ TeleopKeyboard::TeleopKeyboard() :
                 // << "power_regression_lidar,"
 
                 << "power_regression_imu,"
-                << "power_regression_imu_test,"
-                << "power_regression_imu_test_1,"
-                << "power_regression_imu_test_2,"
+                // << "power_regression_imu_test,"
+                // << "power_regression_imu_test_1,"
+                // << "power_regression_imu_test_2,"
 
                 <<"imu_roll, imu_pitch, imu_yaw"
                 << std::endl;
         }
     }
     
-    cmd_pub_ = nh_.advertise<std_msgs::UInt8>("cmd_vel", 10);
-    imu_pub_ = nh_.advertise<sensor_msgs::Imu>("processed_imu", 10);
+    cmd_pub_ = nh_.advertise<std_msgs::UInt8>("keycmd_vel", 10);
+    // imu_pub_ = nh_.advertise<sensor_msgs::Imu>("processed_imu", 10);
     imu_float_pub_ = nh_.advertise<std_msgs::Float32MultiArray>("processed_imu_float", 10);
     imu_sub_ = nh_.subscribe("/imu/data", 100, &TeleopKeyboard::imuCallback, this); // 增大隊列以應對高負載
-    motion_array_sub_ = nh_.subscribe("motion_array", 100, &TeleopKeyboard::motionArrayCallback, this);
+    motion_array_sub_ = nh_.subscribe("key_motion_array", 100, &TeleopKeyboard::motionArrayCallback, this);
     odom_sub_ = nh_.subscribe("/odom", 10, &TeleopKeyboard::odomCallback, this);
 
     keyboard_timer_ = nh_.createTimer(ros::Duration(0.1), &TeleopKeyboard::keyboardCallback, this);
@@ -216,7 +216,7 @@ TeleopKeyboard::TeleopKeyboard() :
     tcsetattr(STDIN_FILENO, TCSANOW, &raw_);
     valid_keys_ = {KEY_W, KEY_S, KEY_A, KEY_D, KEY_Q, KEY_E, KEY_X, KEY_1, KEY_2, KEY_3, KEY_4, KEY_5, KEY_6, KEY_7, KEY_8, KEY_9};
 
-    motion_x_ = motion_y_ = motion_th_ = 0.0;
+    // motion_x_ = motion_y_ = motion_th_ = 0.0;
     motion_v_real_ = omega_cmd = velocity_cmd = motion_a_real_ = 0.0;
     vl_real = vr_real = 0.0;
 }
@@ -239,7 +239,6 @@ void TeleopKeyboard::odomCallback(const nav_msgs::OdometryConstPtr &msg) {
         msg->pose.pose.orientation.w);
     tf::Matrix3x3(q).getRPY(pose_roll, pose_pitch, pose_yaw);
     loop_rate.sleep();
-
 }
 
 float pre_imu_z = 0, diff_imu_z = 0;
@@ -408,21 +407,25 @@ void TeleopKeyboard::imuCallback(const sensor_msgs::ImuConstPtr &msg) {
 
 void TeleopKeyboard::motionArrayCallback(const std_msgs::Float32MultiArrayConstPtr &msg) {
     if (msg->data.size() == 15) {
-        motion_x_ = msg->data[0];
-        motion_y_ = msg->data[1];
-        omega_cmd = msg->data[2];
-        motion_v_real_ = msg->data[3];
-        velocity_cmd = msg->data[4];
-        motion_a_real_ = msg->data[5];   
-        vl_real = msg->data[6]; 
-        vr_real = msg->data[7];
-        comp_L = msg->data[8];  
-        comp_R = msg->data[9];
-        LLPWM = msg->data[10];  
-        RRPWM = msg->data[11];
-        differential_angular_v = msg->data[12];
-        low_filter_imu_acc_x = msg->data[13];
-        low_filter_imu_acc_y = msg->data[14];
+
+        motion_v_real_ = msg->data[0];
+        motion_a_real_ = msg->data[1];
+
+        // motion_x_ = msg->data[0];
+        // motion_y_ = msg->data[1];
+        // omega_cmd = msg->data[2];
+        // motion_v_real_ = msg->data[3];
+        // velocity_cmd = msg->data[4];
+        // motion_a_real_ = msg->data[5];   
+        // vl_real = msg->data[6]; 
+        // vr_real = msg->data[7];
+        // comp_L = msg->data[8];  
+        // comp_R = msg->data[9];
+        // LLPWM = msg->data[10];  
+        // RRPWM = msg->data[11];
+        // differential_angular_v = msg->data[12];
+        // low_filter_imu_acc_x = msg->data[13];
+        // low_filter_imu_acc_y = msg->data[14];
 
         // 計算融合角加速度
         ros::Time current_time = ros::Time::now();
@@ -487,25 +490,25 @@ void TeleopKeyboard::motionArrayCallback(const std_msgs::Float32MultiArrayConstP
                             cofficient[7] * std::max(std::sin(imu_roll + 1.62), 0.0) * abs_liner_velocity;
 
 
-        power_regression_imu_test = power_regression + 
-                            114 * std::max(motion_a_real_, 0.0) * abs_liner_velocity +
-                            -40.47 * std::min(motion_a_real_, 0.0) * abs_liner_velocity +
-                            1160 * std::max(std::sin(imu_roll + 1.62), 0.0) * abs_liner_velocity;
+        // power_regression_imu_test = power_regression + 
+        //                     114 * std::max(motion_a_real_, 0.0) * abs_liner_velocity +
+        //                     -40.47 * std::min(motion_a_real_, 0.0) * abs_liner_velocity +
+        //                     1160 * std::max(std::sin(imu_roll + 1.62), 0.0) * abs_liner_velocity;
 
-        power_regression_imu_test_1 = power_regression + 
-                            172 * std::max(motion_a_real_, 0.0) * abs_liner_velocity +
-                            -40.47 * std::min(motion_a_real_, 0.0) * abs_liner_velocity +
-                            1160 * std::max(std::sin(imu_roll + 1.62), 0.0) * abs_liner_velocity;
+        // power_regression_imu_test_1 = power_regression + 
+        //                     172 * std::max(motion_a_real_, 0.0) * abs_liner_velocity +
+        //                     -40.47 * std::min(motion_a_real_, 0.0) * abs_liner_velocity +
+        //                     1160 * std::max(std::sin(imu_roll + 1.62), 0.0) * abs_liner_velocity;
 
-        power_regression_imu_test_2 = power_regression + 
-                            172 * std::max(motion_a_real_, 0.0) * abs_liner_velocity +
-                            -60.47 * std::min(motion_a_real_, 0.0) * abs_liner_velocity +
-                            1160 * std::max(std::sin(imu_roll + 1.62), 0.0) * abs_liner_velocity;
+        // power_regression_imu_test_2 = power_regression + 
+        //                     172 * std::max(motion_a_real_, 0.0) * abs_liner_velocity +
+        //                     -60.47 * std::min(motion_a_real_, 0.0) * abs_liner_velocity +
+        //                     1160 * std::max(std::sin(imu_roll + 1.62), 0.0) * abs_liner_velocity;
 
 
-        ROS_DEBUG("收到 motion_array 數據: x=%f, y=%f, th=%f, v=%f, omega=%f, a=%f, vl_real=%f, vr_real=%f, comp_L=%f, comp_R=%f, LLPWM=%f, RRPWM=%f, differential_angular_v=%f",
-                  motion_x_, motion_y_, motion_th_, motion_v_real_, imu_yaw_rate,
-                  motion_a_real_, vl_real, vr_real, comp_L, comp_R, LLPWM, RRPWM, differential_angular_v);
+        // ROS_DEBUG("收到 motion_array 數據: x=%f, y=%f, th=%f, v=%f, omega=%f, a=%f, vl_real=%f, vr_real=%f, comp_L=%f, comp_R=%f, LLPWM=%f, RRPWM=%f, differential_angular_v=%f",
+        //           motion_x_, motion_y_, motion_th_, motion_v_real_, imu_yaw_rate,
+        //           motion_a_real_, vl_real, vr_real, comp_L, comp_R, LLPWM, RRPWM, differential_angular_v);
     } else {
         ROS_WARN("motion_array 數據長度錯誤: %zu", msg->data.size());
     }
@@ -561,7 +564,7 @@ void TeleopKeyboard::saveImuAndMotionData() {
             << imu_acc_x_ << "," << imu_acc_y_ << "," << imu_acc_z_ << ","
             << x_kf_acc_x_ << "," << x_kf_acc_y_ << "," << x_kf_acc_z_ << ","
             << imu_roll_rate << "," << imu_pitch_rate << "," << imu_yaw_rate << ","
-            << motion_x_ << "," << motion_y_ << "," << motion_th_ << ","
+            // << motion_x_ << "," << motion_y_ << "," << motion_th_ << ","
             << motion_v_real_ << "," << omega_cmd << ","
             << motion_a_real_ << "," << x_kf_motion_a_<< "," << vl_real << "," << vr_real << ","
             << comp_L << "," << comp_R << "," << LLPWM << "," << RRPWM << ","
@@ -575,9 +578,9 @@ void TeleopKeyboard::saveImuAndMotionData() {
             << pose_roll << "," << pose_pitch << "," << pose_yaw <<","
             // << power_regression_lidar << ","
             << power_regression_imu << ","
-            << power_regression_imu_test << ","
-            << power_regression_imu_test_1 << ","
-            << power_regression_imu_test_2 << ","
+            // << power_regression_imu_test << ","
+            // << power_regression_imu_test_1 << ","
+            // << power_regression_imu_test_2 << ","
 
             << imu_roll+1.62 << "," << imu_pitch << "," << imu_yaw 
             << std::endl;
