@@ -16,7 +16,7 @@ def landmark_display_name(value: str) -> str:
     return re.sub(r"\s+", " ", text).strip()
 
 
-def normalize_grounding_prompt(prompt: str | None, fallback_landmark: str) -> str:
+def parse_grounding_phrases(prompt: str | None, fallback_landmark: str = "") -> list[str]:
     source = (prompt or "").strip()
     phrases: list[str] = []
     if source:
@@ -29,6 +29,11 @@ def normalize_grounding_prompt(prompt: str | None, fallback_landmark: str) -> st
         fallback = landmark_display_name(fallback_landmark)
         if fallback:
             phrases.append(fallback)
+    return phrases
+
+
+def normalize_grounding_prompt(prompt: str | None, fallback_landmark: str) -> str:
+    phrases = parse_grounding_phrases(prompt, fallback_landmark)
     normalized: list[str] = []
     for phrase in phrases:
         final_phrase = re.sub(r"\s+", " ", phrase).strip()

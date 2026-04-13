@@ -35,6 +35,7 @@ DEFAULT_ENVIRONMENT_ID = "hallway_9f"
 DEFAULT_CAMERA_SOURCE = "/camera/camera/color/image_raw"
 DEFAULT_CLIP_DURATION_SEC = 3.0
 DEFAULT_INFERENCE_INTERVAL_SEC = 1.5
+DEFAULT_PLANNING_MODE = "default"
 
 
 def guess_media_type(path: Path) -> str:
@@ -107,6 +108,7 @@ def build_route_request_payload(
     mission_id: str = "",
     environment_id: str = DEFAULT_ENVIRONMENT_ID,
     source_mode: str = "",
+    planning_mode: str = DEFAULT_PLANNING_MODE,
     video_uri: str = "",
     camera_source: str = DEFAULT_CAMERA_SOURCE,
     clip_duration_sec: float = DEFAULT_CLIP_DURATION_SEC,
@@ -127,6 +129,7 @@ def build_route_request_payload(
         "goal_text": normalized_goal,
         "environment_id": environment_id.strip() or DEFAULT_ENVIRONMENT_ID,
         "source_mode": normalized_source_mode,
+        "planning_mode": planning_mode.strip() or DEFAULT_PLANNING_MODE,
         "camera_source": camera_source.strip() or DEFAULT_CAMERA_SOURCE,
         "clip_duration_sec": float(clip_duration_sec),
         "inference_interval_sec": float(inference_interval_sec),
@@ -185,6 +188,7 @@ class WebUIROSBridge(Node):
             "mission_id": "",
             "environment_id": DEFAULT_ENVIRONMENT_ID,
             "source_mode": "video_file",
+            "planning_mode": DEFAULT_PLANNING_MODE,
             "camera_source": DEFAULT_CAMERA_SOURCE,
             "clip_duration_sec": DEFAULT_CLIP_DURATION_SEC,
             "inference_interval_sec": DEFAULT_INFERENCE_INTERVAL_SEC,
@@ -273,6 +277,9 @@ class WebUIROSBridge(Node):
         self.route_defaults["source_mode"] = infer_source_mode(
             str(payload.get("video_uri", self.current_video_uri)),
             str(payload.get("source_mode", "")),
+        )
+        self.route_defaults["planning_mode"] = (
+            str(payload.get("planning_mode", "")).strip() or DEFAULT_PLANNING_MODE
         )
         self.route_defaults["camera_source"] = (
             str(payload.get("camera_source", "")).strip() or DEFAULT_CAMERA_SOURCE
@@ -400,6 +407,7 @@ class WebUIROSBridge(Node):
                 DEFAULT_ENVIRONMENT_ID,
             ),
             source_mode=self.route_defaults.get("source_mode", ""),
+            planning_mode=self.route_defaults.get("planning_mode", DEFAULT_PLANNING_MODE),
             video_uri=self.current_video_uri,
             camera_source=self.route_defaults.get(
                 "camera_source",
@@ -472,6 +480,7 @@ class RouteRequest(BaseModel):
     mission_id: str = ""
     environment_id: str = DEFAULT_ENVIRONMENT_ID
     source_mode: str = ""
+    planning_mode: str = DEFAULT_PLANNING_MODE
     video_uri: str = ""
     camera_source: str = DEFAULT_CAMERA_SOURCE
     clip_duration_sec: float = DEFAULT_CLIP_DURATION_SEC
@@ -626,6 +635,7 @@ async def api_route_request(req: RouteRequest):
             mission_id=req.mission_id,
             environment_id=req.environment_id,
             source_mode=req.source_mode,
+            planning_mode=req.planning_mode,
             video_uri=req.video_uri.strip() or ros_node.current_video_uri,
             camera_source=req.camera_source,
             clip_duration_sec=req.clip_duration_sec,

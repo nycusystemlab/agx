@@ -3,6 +3,7 @@ import unittest
 from vla_demo.landmark_logic import (
     evaluate_landmark_detection,
     normalize_grounding_prompt,
+    parse_grounding_phrases,
     select_best_detection,
 )
 from vla_demo.route_planning import coerce_route_plan_payload
@@ -27,6 +28,12 @@ class LandmarkPipelineTest(unittest.TestCase):
         self.assertEqual(
             normalize_grounding_prompt("person, traffic cone", "person"),
             "person. traffic cone.",
+        )
+
+    def test_parse_grounding_phrases_extracts_multiple_objects(self) -> None:
+        self.assertEqual(
+            parse_grounding_phrases("a chair. a fire extinguisher.", "chair"),
+            ["a chair", "a fire extinguisher"],
         )
 
     def test_evaluator_returns_positive_inference_when_threshold_met(self) -> None:
@@ -79,9 +86,63 @@ class LandmarkPipelineTest(unittest.TestCase):
         )
         mission = MissionSpec.from_dict(payload)
         self.assertEqual(mission.mission_id, "route_demo")
+        self.assertEqual(mission.steps[0].grounding_objects, ["corridor"])
         self.assertEqual(mission.steps[0].grounding_prompt, "corridor.")
         self.assertEqual(mission.steps[1].primary_landmark, "freight elevator")
+        self.assertEqual(mission.steps[1].grounding_objects, ["freight elevator"])
         self.assertEqual(mission.steps[1].grounding_prompt, "freight elevator.")
+
+    def test_route_request_accepts_environment_video_landmark_mode(self) -> None:
+        request = RouteRequestSpec.from_dict(
+            {
+                "mission_id": "route_env_demo",
+                "goal_text": "前往貨梯區域",
+                "environment_id": "hallway_9f",
+                "source_mode": "video_file",
+                "planning_mode": "environment_video_landmarks",
+                "video_uri": "/tmp/demo.mp4",
+            }
+        )
+        self.assertEqual(request.planning_mode, "environment_video_landmarks")
+
+    def test_coerce_environment_video_landmark_plan_preserves_grounding_objects(self) -> None:
+        request = RouteRequestSpec.from_dict(
+            {
+                "mission_id": "route_env_demo",
+                "goal_text": "前往貨梯區域",
+                "environment_id": "hallway_9f",
+                "source_mode": "video_file",
+                "planning_mode": "environment_video_landmarks",
+                "video_uri": "/tmp/demo.mp4",
+                "camera_source": "/camera/front/image_raw",
+            }
+        )
+        payload = coerce_route_plan_payload(
+            {
+                "steps": [
+                    {
+                        "step_id": 1,
+                        "instruction": "沿主走廊前進並留意右側的消防箱",
+                        "visual_goal": "右側牆面可見紅色消防箱",
+                        "scene_description": "主走廊右側牆面有顯眼的紅色消防箱。",
+                        "expected_landmarks": ["corridor", "fire cabinet"],
+                        "primary_landmark": "fire cabinet",
+                        "grounding_objects": ["fire cabinet", "corridor wall"],
+                        "grounding_prompt": "fire cabinet. corridor wall.",
+                    }
+                ]
+            },
+            request,
+        )
+        self.assertEqual(payload["planning_mode"], "environment_video_landmarks")
+        self.assertEqual(
+            payload["steps"][0]["grounding_objects"],
+            ["fire cabinet", "corridor wall"],
+        )
+        self.assertEqual(
+            payload["steps"][0]["grounding_prompt"],
+            "fire cabinet. corridor wall.",
+        )
 
     def test_coerce_route_plan_rejects_placeholder_step_content(self) -> None:
         request = RouteRequestSpec.from_dict(

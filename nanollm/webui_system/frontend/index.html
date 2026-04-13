@@ -530,6 +530,13 @@
           </select>
         </div>
         <div>
+          <div class="panel-title" style="margin-top: 16px;">Planning Mode</div>
+          <select id="planningModeInput">
+            <option value="default">default</option>
+            <option value="environment_video_landmarks">environment_video_landmarks</option>
+          </select>
+        </div>
+        <div>
           <div class="panel-title" style="margin-top: 16px;">Camera Source</div>
           <input id="cameraSourceInput" type="text" value="/camera/camera/color/image_raw" />
         </div>
@@ -579,6 +586,7 @@
     const missionIdInput = document.getElementById("missionIdInput");
     const environmentIdInput = document.getElementById("environmentIdInput");
     const sourceModeInput = document.getElementById("sourceModeInput");
+    const planningModeInput = document.getElementById("planningModeInput");
     const cameraSourceInput = document.getElementById("cameraSourceInput");
     const clipDurationInput = document.getElementById("clipDurationInput");
     const inferenceIntervalInput = document.getElementById("inferenceIntervalInput");
@@ -677,6 +685,7 @@
       return [
         `目前執行第 ${step?.step_id ?? "-"} 步`,
         `目標 landmark：${step?.primary_landmark || "-"}`,
+        `Grounding objects：${Array.isArray(step?.grounding_objects) ? step.grounding_objects.join(", ") : "-"}`,
         `Grounding prompt：${step?.grounding_prompt || "-"}`,
       ].join("\n");
     }
@@ -765,6 +774,7 @@
         goal_text: commandInput.value.trim(),
         environment_id: environmentIdInput.value.trim(),
         source_mode: sourceModeInput.value,
+        planning_mode: planningModeInput.value,
         video_uri: videoUriInput.value.trim(),
         camera_source: cameraSourceInput.value.trim(),
         clip_duration_sec: parseFloat(clipDurationInput.value || "3.0"),
@@ -855,6 +865,7 @@
       missionIdInput.value = payload.mission_id || "";
       environmentIdInput.value = payload.environment_id || "hallway_9f";
       sourceModeInput.value = payload.source_mode || "video_file";
+      planningModeInput.value = payload.planning_mode || "default";
       cameraSourceInput.value = payload.camera_source || "/camera/camera/color/image_raw";
       clipDurationInput.value = payload.clip_duration_sec ?? 3.0;
       inferenceIntervalInput.value = payload.inference_interval_sec ?? 1.5;

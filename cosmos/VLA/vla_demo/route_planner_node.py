@@ -50,6 +50,7 @@ class MockRoutePlannerBackend:
             "mission_text": request.goal_text,
             "environment_id": request.environment_id,
             "camera_source": request.camera_source,
+            "planning_mode": request.planning_mode,
             "inference_interval_sec": request.inference_interval_sec,
             "steps": [
                 {
@@ -59,6 +60,7 @@ class MockRoutePlannerBackend:
                     "scene_description": "A forward-facing corridor opens up ahead.",
                     "expected_landmarks": ["corridor"],
                     "primary_landmark": "corridor",
+                    "grounding_objects": ["corridor"],
                     "grounding_prompt": "corridor.",
                     "control_primitive": "move_forward_until_recheck",
                     "votes_needed": 2,
@@ -74,6 +76,7 @@ class MockRoutePlannerBackend:
                     "scene_description": "The route should expose a distinctive waypoint or branch.",
                     "expected_landmarks": ["waypoint_marker"],
                     "primary_landmark": "waypoint marker",
+                    "grounding_objects": ["waypoint marker"],
                     "grounding_prompt": "waypoint marker.",
                     "control_primitive": "move_forward_until_recheck",
                     "votes_needed": 2,
@@ -89,6 +92,7 @@ class MockRoutePlannerBackend:
                     "scene_description": "The target destination area is visible in front of the robot.",
                     "expected_landmarks": ["destination_area"],
                     "primary_landmark": "destination area",
+                    "grounding_objects": ["destination area"],
                     "grounding_prompt": "destination area.",
                     "control_primitive": "approach_target_zone",
                     "votes_needed": 2,

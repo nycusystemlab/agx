@@ -3,7 +3,11 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from typing import Any
 
-from .landmark_logic import landmark_display_name, normalize_grounding_prompt
+from .landmark_logic import (
+    landmark_display_name,
+    normalize_grounding_prompt,
+    parse_grounding_phrases,
+)
 from .topics import CAMERA_IMAGE_TOPIC
 
 
@@ -65,6 +69,7 @@ class StepSpec:
     scene_description: str = ""
     expected_landmarks: list[str] = field(default_factory=list)
     primary_landmark: str = ""
+    grounding_objects: list[str] = field(default_factory=list)
     grounding_prompt: str = ""
     control_primitive: str = "move_forward_until_recheck"
     votes_needed: int = 3
@@ -86,6 +91,10 @@ class StepSpec:
                 primary_landmark = expected_landmarks[0]
             else:
                 primary_landmark = landmark_display_name(visual_goal)
+        grounding_objects = _optional_str_list(data, "grounding_objects")
+        prompt_source = _optional_str(data, "grounding_prompt")
+        if not grounding_objects:
+            grounding_objects = parse_grounding_phrases(prompt_source, primary_landmark)
         step = cls(
             step_id=_require_int(data, "step_id"),
             instruction=_require_str(data, "instruction"),
@@ -93,8 +102,9 @@ class StepSpec:
             scene_description=scene_description,
             expected_landmarks=expected_landmarks,
             primary_landmark=primary_landmark,
+            grounding_objects=grounding_objects,
             grounding_prompt=normalize_grounding_prompt(
-                _optional_str(data, "grounding_prompt"),
+                prompt_source or ", ".join(grounding_objects),
                 primary_landmark,
             ),
             control_primitive=_optional_str(data, "control_primitive")
@@ -155,6 +165,7 @@ class RouteRequestSpec:
     goal_text: str
     environment_id: str
     source_mode: str = "video_file"
+    planning_mode: str = "default"
     video_uri: str = ""
     camera_source: str = CAMERA_IMAGE_TOPIC
     clip_duration_sec: float = 3.0
@@ -167,6 +178,11 @@ class RouteRequestSpec:
         source_mode = _optional_str(data, "source_mode") or "video_file"
         if source_mode not in {"video_file", "live_camera"}:
             raise SchemaError("'source_mode' must be 'video_file' or 'live_camera'")
+        planning_mode = _optional_str(data, "planning_mode") or "default"
+        if planning_mode not in {"default", "environment_video_landmarks"}:
+            raise SchemaError(
+                "'planning_mode' must be 'default' or 'environment_video_landmarks'"
+            )
         video_uri = _optional_str(data, "video_uri")
         if source_mode == "video_file" and not video_uri:
             raise SchemaError("'video_uri' is required for source_mode='video_file'")
@@ -183,6 +199,7 @@ class RouteRequestSpec:
             goal_text=_require_str(data, "goal_text"),
             environment_id=_require_str(data, "environment_id"),
             source_mode=source_mode,
+            planning_mode=planning_mode,
             video_uri=video_uri,
             camera_source=_optional_str(data, "camera_source") or CAMERA_IMAGE_TOPIC,
             clip_duration_sec=clip_duration_sec,

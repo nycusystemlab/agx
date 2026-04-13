@@ -2,7 +2,11 @@ from __future__ import annotations
 
 from typing import Any
 
-from .landmark_logic import landmark_display_name, normalize_grounding_prompt
+from .landmark_logic import (
+    landmark_display_name,
+    normalize_grounding_prompt,
+    parse_grounding_phrases,
+)
 from .schemas import RouteRequestSpec, SchemaError
 from .topics import CAMERA_IMAGE_TOPIC
 
@@ -102,8 +106,12 @@ def coerce_route_plan_payload(
                 primary_landmark = expected_landmarks[0]
             else:
                 primary_landmark = landmark_display_name(visual_goal)
+        grounding_objects = _meaningful_list(_optional_str_list(step_raw, "grounding_objects"))
+        prompt_source = _optional_str(step_raw, "grounding_prompt")
+        if not grounding_objects:
+            grounding_objects = parse_grounding_phrases(prompt_source, primary_landmark)
         grounding_prompt = normalize_grounding_prompt(
-            _optional_str(step_raw, "grounding_prompt"),
+            prompt_source or ", ".join(grounding_objects),
             primary_landmark,
         )
         step_id = step_raw.get("step_id", index)
@@ -117,6 +125,7 @@ def coerce_route_plan_payload(
                 "scene_description": scene_description,
                 "expected_landmarks": expected_landmarks,
                 "primary_landmark": primary_landmark,
+                "grounding_objects": grounding_objects,
                 "grounding_prompt": grounding_prompt,
                 "control_primitive": _optional_str(step_raw, "control_primitive")
                 or "move_forward_until_recheck",
@@ -139,6 +148,7 @@ def coerce_route_plan_payload(
         "mission_text": mission_text,
         "environment_id": request.environment_id,
         "camera_source": camera_source,
+        "planning_mode": request.planning_mode,
         "inference_interval_sec": float(request.inference_interval_sec),
         "steps": normalized_steps,
     }

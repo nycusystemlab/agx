@@ -11,6 +11,7 @@ steps:
     scene_description: 視野前方打開成主走廊，左側與右側都有牆面邊界。
     expected_landmarks: [corridor]
     primary_landmark: corridor
+    grounding_objects: [corridor]
     grounding_prompt: corridor.
     control_primitive: move_forward_until_recheck
     votes_needed: 3
@@ -24,6 +25,7 @@ steps:
     scene_description: 主走廊持續向前延伸，右手邊出現可通行的支路開口。
     expected_landmarks: [corridor, right_branch]
     primary_landmark: right_branch
+    grounding_objects: [right branch, corridor]
     grounding_prompt: right branch.
     control_primitive: move_forward_until_recheck
     votes_needed: 3
@@ -37,6 +39,7 @@ steps:
     scene_description: 鏡頭在轉角點完成右轉，新的支路走廊出現在正前方。
     expected_landmarks: [right_turn_point, branch_corridor]
     primary_landmark: right_turn_point
+    grounding_objects: [right turn point, branch corridor]
     grounding_prompt: right turn point.
     control_primitive: turn_right_90
     votes_needed: 3
@@ -50,6 +53,7 @@ steps:
     scene_description: 支路走廊上可見貨梯區域的門面或指示特徵。
     expected_landmarks: [branch_corridor, freight_elevator_zone]
     primary_landmark: freight_elevator_zone
+    grounding_objects: [freight elevator zone, branch corridor]
     grounding_prompt: freight elevator zone.
     control_primitive: move_forward_until_recheck
     votes_needed: 3
@@ -63,6 +67,7 @@ steps:
     scene_description: 貨梯門面位於前方中央，適合停靠的位置清楚可見。
     expected_landmarks: [freight_elevator, stop_point]
     primary_landmark: freight_elevator
+    grounding_objects: [freight elevator, stop point]
     grounding_prompt: freight elevator.
     control_primitive: approach_target_zone
     votes_needed: 3
