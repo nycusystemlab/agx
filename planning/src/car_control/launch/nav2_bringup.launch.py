@@ -85,7 +85,7 @@ def _launch_setup(context, *args, **kwargs):
 def generate_launch_description():
     car_control_share = get_package_share_directory('car_control')
 
-    default_map = os.path.join(car_control_share, 'config', '9F.yaml')
+    default_map = os.path.join(car_control_share, 'config', 'sim_map.yaml')
     default_override = os.path.join(
         car_control_share, 'config', 'nav2_params_real.yaml'
     )

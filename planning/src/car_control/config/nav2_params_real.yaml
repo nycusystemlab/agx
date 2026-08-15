@@ -39,7 +39,7 @@ controller_server:
       rotate_to_goal_heading: false
 
       # RPP 參數（從 sim 移植）
-      desired_linear_vel: 1.2
+      desired_linear_vel: 0.6
       lookahead_dist: 1.0
       min_lookahead_dist: 0.5
       max_lookahead_dist: 1.5
@@ -61,7 +61,7 @@ controller_server:
       stateful: true
       allow_reversing: false
       max_robot_pose_search_dist: 10.0
-      max_angular_vel: 2.0
+      max_angular_vel: 4.0
 
 behavior_server:
   ros__parameters:
@@ -75,4 +75,4 @@ velocity_smoother:
     min_velocity: [-0.3, 0.0, -2.0]
     max_accel: [0.6, 0.0, 2.5]      # angular accel: real 用 2.5，sim 的 12.0 是 deadband hack
     max_decel: [-3.0, 0.0, -3.2]
-    deadband_velocity: [0.02, 0.0, 0.02]
+    deadband_velocity: [0.02, 0.0, 0.2]
