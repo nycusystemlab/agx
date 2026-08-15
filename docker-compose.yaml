@@ -13,3 +13,7 @@ include:
   - path: ./vlm/docker-compose.yaml
   - path: ./nanollm/docker-compose.yaml
   - path: ./cosmos/docker-compose.yaml
+  # SIM ↔ 實車的 ROS 2 橋接（zenoh-bridge-dds）。
+  # 設定檔 zenoh/robot-bridge.json5 不進版控，來源是 infra repo 的 robot-net/zenoh/；
+  # 沒放的話只有這個 service 起不來，其餘服務不受影響。
+  - path: ./zenoh/docker-compose.yaml

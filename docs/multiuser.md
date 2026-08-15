@@ -20,17 +20,42 @@
 
 ```
 ROS_DOMAIN_ID  = uid - 1000 + 1      # 原有帳號保留 0
-Isaac 端       = ROS_DOMAIN_ID + 30  # 由 domain_bridge 白名單轉發
+Isaac 端       = ROS_DOMAIN_ID + 30
 FOXGLOVE_PORT  = 8765 + ROS_DOMAIN_ID
 ```
 
 這些已寫進各自的 `~/.bashrc`。家目錄在 `/srv/home/<帳號>`，無 quota，但每 6 小時檢查水位，超過 85% 告警。
+
+> ⚠️ **`domain_bridge` 目前只橋 domain 30 ↔ 0**（見 `amr_simulate/docker/isaacsim/domain_bridge.yaml`）。
+> 上面的「Isaac 端 = ROS_DOMAIN_ID + 30」是**位址分配的約定**，不是已經做好的轉發：
+> 31↔1、32↔2、33↔3 的 per-user 轉發**還沒有人實作**。
+> 所以除了 `ubuntu`（domain 0）以外，你的 Isaac 端不會自動橋到自己的 domain ——
+> 要嘛用 domain 0，要嘛自己複製一份 `domain_bridge.yaml` 改掉 domain 再起一個 sidecar。
+> 寫在這裡是為了讓你**不要照著超前的文件，去除錯一個不存在的功能**。
 
 ## 連線
 
 在實驗室內直接 `ssh <帳號>@<DEV>`。遠端要先連 **wg-lab** VPN。
 
 ⚠️ **機器人專用的 WireGuard 網段連不到 DEV**——那是刻意封閉的，開發請用 wg-lab 的 peer。
+
+### 連 ROBOT：一律經 SIM 跳板
+
+存取模型是同心圓，**SIM 是唯一入口**，而且這是被路由器防火牆強制的，不是慣例：
+
+```
+遠端開發者 ──wg-lab──▶ SIM ──(跳板)──▶ ROBOT
+工作站網段 / wg-lab peer ────✗────▶ ROBOT   （不可直達）
+```
+
+```bash
+ssh <SIM> -t 'ssh <ROBOT 的 wg IP>'
+```
+
+**ROBOT 的位址就是它的 wg IP**（見 local 檔），實驗室內、外場都是同一個 ——
+車進出實驗室時你不用改任何腳本或 SSH 設定。底層走有線還是手機熱點只影響速度，不影響位址。
+
+網路規則本身收在 infra repo 的 `robot-net/`（VLAN、防火牆白名單、zenoh 設定範本、驗證腳本）。
 
 ## compose 變數
 
@@ -44,10 +69,24 @@ cp .env.example .env    # 填自己的值
 | `CONTAINER_PREFIX` | 空（容器叫 `planning`、`foxglove`…） |
 | `FOXGLOVE_PORT` | `8765` |
 | `AGX_PROJECT_ROOT` / `AGX_WORKSPACES` | 實機的預設路徑 |
+| `ZENOH_BRIDGE_CONFIG` | `robot-bridge.json5`（車端）。**在 SIM 上要設成 `sim-bridge.json5`** |
 
 不建 `.env` 時行為與單人時期完全相同。`.env` 已 gitignore——每人的值不同，不要 commit。
 
 ## 兩個會踩的坑
+
+> 🚧 **這兩個坑正在被 infra repo 的 `robot-net/` 消滅，但施工還沒做。**
+> 下面寫的是**現在**（USB WiFi 還在、車連不到 Harbor）真的要照著做的流程。
+> `robot-net` 套用後改成這樣，屆時請把這一節換掉、只留新流程：
+>
+> | | 現在 | robot-net 套用後 |
+> |---|---|---|
+> | ROBOT ↔ SIM | SIM 的 USB WiFi 加入車的網段；傳大檔必須由 ROBOT 主動發起 | SIM 有線 → wg；USB WiFi 退役，沒有路由不對稱的問題 |
+> | 取 image | 三步中轉（下面第 2 點），40 GB 約 20 分鐘 | ROBOT 直接 `docker pull <harbor>/agx-arm64/…` |
+> | ROS 2 topic | CycloneDDS 多播，靠「剛好同一個 L2」 | `zenoh-bridge-dds` 明列 allowlist（`zenoh/docker-compose.yaml`） |
+> | rosbag | 手動 scp 中轉 | ROBOT 直接寫 NAS 共用目錄 |
+>
+> 施工完成的判準：在 SIM 上跑 infra repo 的 `bash robot-net/verify.sh` 全綠。
 
 ### 1. ROBOT ↔ SIM 傳大檔要走有線，差五倍
 
