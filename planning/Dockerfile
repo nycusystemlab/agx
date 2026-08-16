@@ -33,9 +33,7 @@ ENV WORKSPACE=/root/ros2_ws
 RUN curl -fsSL https://dl.yarnpkg.com/debian/pubkey.gpg \
     | gpg --dearmor -o /usr/share/keyrings/yarn.gpg && \
     echo "deb [signed-by=/usr/share/keyrings/yarn.gpg] https://dl.yarnpkg.com/debian stable main" \
-    > /etc/apt/sources.list.d/yarn.list && \
-    echo "deb [trusted=yes] https://download.eclipse.org/zenoh/debian-repo/ /" \
-    > /etc/apt/sources.list.d/zenoh.list
+    > /etc/apt/sources.list.d/yarn.list
 
 # ROS 2 套件 + 系統工具 (單次 apt-get，減少 layer)
 RUN apt-get update && \
@@ -54,7 +52,6 @@ RUN apt-get update && \
     ros-${ROS_DISTRO}-joint-state-publisher \
     # ── Middleware / Comm ──
     ros-${ROS_DISTRO}-rmw-cyclonedds-cpp \
-    zenoh-bridge-ros2dds \
     # ── Utilities ──
     ros-${ROS_DISTRO}-tf-transformations \
     ros-${ROS_DISTRO}-teleop-twist-keyboard \
