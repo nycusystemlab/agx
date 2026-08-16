@@ -1,39 +1,23 @@
-# ==============================================================================
-#  zenoh-bridge-dds —— SIM ↔ 實車 的 ROS 2 橋接
+# zenoh-bridge-dds —— SIM ↔ 實車的 ROS 2 橋接
 #
-#  取代「SIM 插一張 USB WiFi 加入車的網段、靠 CycloneDDS 多播剛好互相看到」的隱式做法。
-#  現在 SIM 與車之間只剩 WireGuard 這一條路（車的位址永遠是它的 wg IP），
-#  而且哪些 topic 會過橋是**明列**的。
+# 設定檔不在本 repo：它是網路設定的一部分，收在 infra repo（lab-nas-infra）的
+# robot-net/zenoh/，由那邊依 infra.env 展開後複製到本目錄（zenoh/*.json5 已 gitignore）。
 #
-#  設定檔不在本 repo：它是網路設定的一部分，收在 infra repo（lab-nas-infra）的
-#  robot-net/zenoh/*.json5.example，由那邊的 deploy.sh 依 infra.env 展開後複製過來。
-#  這樣「防火牆放行哪個埠」與「bridge 連哪個埠」不會各寫一份。
-#
-#  用法
-#    車上（AGX）：  docker compose -f zenoh/docker-compose.yaml up -d
-#                   （或直接 make up —— 根目錄 orchestrator 已 include 本檔）
-#    SIM 上：       ZENOH_BRIDGE_CONFIG=sim-bridge.json5 \
-#                     docker compose -f zenoh/docker-compose.yaml up -d
-#
-#  ⚠️ 設定檔要放在本目錄下（zenoh/robot-bridge.json5 或 zenoh/sim-bridge.json5），
-#     已 gitignore。這裡刻意掛「整個目錄」而不是單一檔案——
-#     bind mount 的來源檔不存在時 docker 會**建一個同名目錄**，
-#     bridge 於是拿到一個目錄當設定檔，錯誤訊息會非常難懂。
-#     掛目錄的話，檔案不存在就是乾脆的「找不到設定檔」。
-# ==============================================================================
+#   車上：  docker compose -f zenoh/docker-compose.yaml up -d
+#   SIM：   ZENOH_BRIDGE_CONFIG=sim-bridge.json5 docker compose -f zenoh/docker-compose.yaml up -d
 services:
   zenoh-bridge:
-    image: eclipse/zenoh-bridge-dds:1.10.0 # 釘版號：設定檔的鍵名是對照這版的 DEFAULT_CONFIG.json5 寫的
+    image: eclipse/zenoh-bridge-dds:1.10.0 # 設定檔的鍵名對照這版的 DEFAULT_CONFIG.json5
     container_name: ${CONTAINER_PREFIX:-}zenoh-bridge
 
-    # 要跟本機的 DDS 參與者在同一個網路命名空間才看得到它們的探索封包。
+    # 要與本機 DDS 參與者同一個網路命名空間才看得到探索封包
     network_mode: host
 
     environment:
-      # 只影響 bridge 自己的 log；實際橋接的 domain 由設定檔的 plugins.dds.domain 決定
-      # （兩者不一致時以設定檔為準，這是刻意的：domain 屬於「橋接設定」）。
       - RUST_LOG=${ZENOH_LOG:-zenoh=info,zenoh_plugin_dds=info}
 
+    # 掛整個目錄而非單一檔案：bind mount 來源不存在時 docker 會建同名目錄，
+    # bridge 拿到目錄當設定檔的錯誤訊息非常難懂
     volumes:
       - ./:/config:ro
 
