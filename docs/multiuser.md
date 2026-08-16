@@ -75,18 +75,18 @@ cp .env.example .env    # 填自己的值
 
 ## 兩個會踩的坑
 
-> 🚧 **這兩個坑正在被 infra repo 的 `robot-net/` 消滅，但施工還沒做。**
-> 下面寫的是**現在**（USB WiFi 還在、車連不到 Harbor）真的要照著做的流程。
-> `robot-net` 套用後改成這樣，屆時請把這一節換掉、只留新流程：
+> 🚧 **這一節正在被 infra repo 的 `robot-net/` 取代，但還沒完全交接。**
 >
-> | | 現在 | robot-net 套用後 |
-> |---|---|---|
-> | ROBOT ↔ SIM | SIM 的 USB WiFi 加入車的網段；傳大檔必須由 ROBOT 主動發起 | SIM 有線 → wg；USB WiFi 退役，沒有路由不對稱的問題 |
-> | 取 image | 三步中轉（下面第 2 點），40 GB 約 20 分鐘 | ROBOT 直接 `docker pull <harbor>/agx-arm64/…` |
-> | ROS 2 topic | CycloneDDS 多播，靠「剛好同一個 L2」 | `zenoh-bridge-dds` 明列 allowlist（`zenoh/docker-compose.yaml`） |
-> | rosbag | 手動 scp 中轉 | ROBOT 直接寫 NAS 共用目錄 |
+> | | 狀態（2026-08-16） |
+> |---|---|
+> | ROS 2 topic | ✅ **已改用 `zenoh-bridge-dds`**（`zenoh/docker-compose.yaml`），topic allowlist 明列 |
+> | 連 ROBOT | ✅ 已改用車的 wg IP，見上面「連 ROBOT」一節 |
+> | 取 image | ✅ ROBOT 已能直接 `docker pull`；下面第 2 點的三步中轉**作廢** |
+> | rosbag | ✅ 防火牆已放行 ROBOT → NAS |
+> | ROBOT ↔ SIM 傳大檔 | ⬜ **SIM 的 USB WiFi 還在**，下面第 1 點仍然適用 |
 >
-> 施工完成的判準：在 SIM 上跑 infra repo 的 `bash robot-net/verify.sh` 全綠。
+> 所以：**第 2 點已經是歷史，第 1 點還是現況。** 等 dock 插線 + USB WiFi 退役後，
+> 整節可以刪掉。判準是在 SIM 上跑 infra repo 的 `bash robot-net/verify.sh`。
 
 ### 1. ROBOT ↔ SIM 傳大檔要走有線，差五倍
 
