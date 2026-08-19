@@ -26,12 +26,24 @@ FOXGLOVE_PORT  = 8765 + ROS_DOMAIN_ID
 
 這些已寫進各自的 `~/.bashrc`。家目錄在 `/srv/home/<帳號>`，無 quota，但每 6 小時檢查水位，超過 85% 告警。
 
-> ⚠️ **`domain_bridge` 目前只橋 domain 30 ↔ 0**（見 `amr_simulate/docker/isaacsim/domain_bridge.yaml`）。
-> 上面的「Isaac 端 = ROS_DOMAIN_ID + 30」是**位址分配的約定**，不是已經做好的轉發：
-> 31↔1、32↔2、33↔3 的 per-user 轉發**還沒有人實作**。
-> 所以除了 `ubuntu`（domain 0）以外，你的 Isaac 端不會自動橋到自己的 domain ——
-> 要嘛用 domain 0，要嘛自己複製一份 `domain_bridge.yaml` 改掉 domain 再起一個 sidecar。
-> 寫在這裡是為了讓你**不要照著超前的文件，去除錯一個不存在的功能**。
+`domain_bridge` 的 **per-user 轉發已經做好了**（2026-08-18）：設定檔改成 template，
+sidecar 啟動時依環境變數展開，所以 31↔1、32↔2、33↔3 都成立，不必再自己複製一份 yaml。
+
+實作在 `amr_simulate` repo 的 `docker/isaacsim/`：
+
+```bash
+# 你自己的 checkout，docker/isaacsim/.env
+ROS_DOMAIN_ID=1
+ISAAC_ROS_DOMAIN_ID=31
+CONTAINER_PREFIX=<你的帳號>_
+
+docker compose up -d domain-bridge     # 只起 sidecar
+docker logs <你的帳號>_amr_domain_bridge | head -2   # 會印出實際橋的 domain 配對
+```
+
+⚠️ **Isaac Sim 本身仍然只能有一份**（WebRTC server 綁 host 的 49100 埠）。
+所以實務上是「誰在跑 Isaac，誰決定 Isaac 端的 domain」，其他人把自己的 sidecar
+橋到那個 domain。要獨佔的話還是照舊：用之前先講一聲。
 
 ## 連線
 
@@ -79,7 +91,7 @@ cp .env.example .env    # 填自己的值
 >
 > | | 狀態（2026-08-16） |
 > |---|---|
-> | ROS 2 topic | ✅ **已改用 `zenoh-bridge-dds`**（`zenoh/docker-compose.yaml`），topic allowlist 明列 |
+> | ROS 2 topic | ✅ **已改用 `zenoh-bridge-dds`**（`zenoh/docker-compose.yaml`），topic allowlist 明列；延遲與流量上限實測見 [`zenoh/zenoh-latency.md`](../zenoh/zenoh-latency.md) |
 > | 連 ROBOT | ✅ 已改用車的 wg IP，見上面「連 ROBOT」一節 |
 > | 取 image | ✅ ROBOT 已能直接 `docker pull`；下面第 2 點的三步中轉**作廢** |
 > | rosbag | ✅ 防火牆已放行 ROBOT → NAS |
