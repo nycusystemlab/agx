@@ -51,6 +51,26 @@ cmake -B build -DCMAKE_BUILD_TYPE=Release && cmake --build build -j
 ./build/zping --role ping --mode small --count 200 --rate 10
 ```
 
+**否定測試**（`expect-none`）：斷言某個 topic 的訊息**不該**送達。收端在 `--seconds`
+內收到任何一則即失敗（exit 1），一則都沒收到才通過（exit 0）。白名單設錯時橋不報錯，
+只會靜默放行或靜默阻擋，沒有這個角色就分不出「擋住了」與「根本沒在跑」。
+
+`--topic` 可覆寫 `--mode` 的預設 topic（訊息型別仍由 `--mode` 決定），否定測試就是靠它
+指向一個**不在白名單內**的 topic。訂閱固定用 BEST_EFFORT，避免 QoS 不相容造成假性通過。
+
+**`expect-none` 單獨跑沒有證據力。** 橋掛掉、網路斷、`ROS_DOMAIN_ID` 設錯時它一樣通過。
+必須跟同一時窗的正向 ping（白名單內 topic、**必須**收到）配成一對，兩邊都符合預期才算
+閘門有效。下面的範例只是否定那一半。
+
+```bash
+# 發送端：對一個不該過橋的 topic 灌流量
+python3 zping.py --role flood --mode scan --topic /not_allowlisted --rate 20 --seconds 20
+
+# 接收端：預期收不到
+python3 zping.py --role expect-none --mode scan --topic /not_allowlisted --seconds 10 --label gate
+./build/zping    --role expect-none --mode scan --topic /not_allowlisted --seconds 10 --label gate
+```
+
 ---
 
 ## 2. 跨橋延遲：rclpy vs rclcpp

@@ -6,6 +6,14 @@ ping 端與 pong 端各跑一個。RTT 全程用 ping 端的時鐘量（pong 只
 
 topic 選 /initialpose、/scan、/d455/color/image_raw、/goal_pose 是因為
 zenoh allowlist 只放行這幾個；量測期間這些 topic 在兩端都沒有其他訂閱者。
+
+expect-none 角色是白名單閘門的否定測試：搭 --topic 指定一個「不該過橋」的
+topic，收到任何一則就算失敗。白名單寫錯時橋不會報錯，只會靜默放行或靜默阻擋，
+沒有這個角色就分不出「擋住了」與「根本沒在跑」。
+
+expect-none 單獨跑沒有意義：橋掛掉、網路斷、domain 設錯時它一樣是綠燈。必須與
+同一時窗、同一組行程的正向 ping（白名單內 topic 且必須收到）配成一對，正向那半
+才是「鏈路真的在跑」的證據。配對由驗收腳本負責，不在本檔內。
 """
 import argparse, json, sys, time
 
@@ -21,6 +29,11 @@ MODES = {
     "image": (Image,                     "/d455/color/image_raw"),
 }
 REPLY_TOPIC = "/goal_pose"
+
+
+def resolve(mode, topic):
+    cls, default_topic = MODES[mode]
+    return cls, (topic or default_topic)
 
 
 def make_payload(mode, stamp, points, width, height):
@@ -44,9 +57,9 @@ def make_payload(mode, stamp, points, width, height):
 class Flood(Node):
     """單向灌流量：以固定速率發，序號放在 header.frame_id 讓 sink 算掉包。"""
 
-    def __init__(self, mode, rate, seconds, reliable, points, width, height):
+    def __init__(self, mode, rate, seconds, reliable, points, width, height, topic=""):
         super().__init__("zflood")
-        cls, topic = MODES[mode]
+        cls, topic = resolve(mode, topic)
         self.mode = mode
         self.points, self.width, self.height = points, width, height
         self.pub = self.create_publisher(cls, topic, qos(reliable))
@@ -67,9 +80,9 @@ class Flood(Node):
 class Sink(Node):
     """收端：算實際到達的訊息數、位元組數與序號缺口。"""
 
-    def __init__(self, mode, reliable):
+    def __init__(self, mode, reliable, topic=""):
         super().__init__("zsink")
-        cls, topic = MODES[mode]
+        cls, topic = resolve(mode, topic)
         self.mode = mode
         self.sub = self.create_subscription(cls, topic, self.cb, qos(reliable))
         self.n, self.bytes = 0, 0
@@ -108,6 +121,34 @@ class Sink(Node):
         print("RESULT " + json.dumps(out))
 
 
+class ExpectNone(Node):
+    """否定測試：訂閱一個「不該送達」的 topic，收到任何一則即為失敗。
+
+    刻意固定用 BEST_EFFORT 訂閱：BEST_EFFORT reader 同時相容 RELIABLE 與
+    BEST_EFFORT writer，若跟著 --best-effort 走，QoS 不相容會讓訂閱根本配不上
+    發布端，測試就會因為「沒配對」而假性通過。
+    """
+
+    def __init__(self, mode, topic=""):
+        super().__init__("zexpect_none")
+        cls, topic = resolve(mode, topic)
+        self.mode_name, self.topic = mode, topic
+        self.sub = self.create_subscription(cls, topic, self.cb, qos(False))
+        self.n = 0
+
+    def cb(self, msg):
+        self.n += 1
+
+    def report(self, label, seconds):
+        ok = self.n == 0
+        print("RESULT " + json.dumps({
+            "label": label, "impl": "py", "role": "expect-none", "mode": self.mode_name,
+            "topic": self.topic, "seconds": round(seconds, 2), "recv": self.n, "pass": ok}))
+        print(f"PASS: no messages on {self.topic} in {seconds:.1f}s" if ok
+              else f"FAIL: received {self.n} message(s) on {self.topic} in {seconds:.1f}s")
+        return ok
+
+
 def qos(reliable):
     return QoSProfile(
         reliability=ReliabilityPolicy.RELIABLE if reliable else ReliabilityPolicy.BEST_EFFORT,
@@ -115,9 +156,9 @@ def qos(reliable):
 
 
 class Pong(Node):
-    def __init__(self, mode, reliable):
+    def __init__(self, mode, reliable, topic=""):
         super().__init__("zpong")
-        cls, topic = MODES[mode]
+        cls, topic = resolve(mode, topic)
         self.pub = self.create_publisher(PoseStamped, REPLY_TOPIC, qos(True))
         self.sub = self.create_subscription(cls, topic, self.cb, qos(reliable))
         self.n = 0
@@ -134,9 +175,9 @@ class Pong(Node):
 
 
 class Ping(Node):
-    def __init__(self, mode, count, rate, reliable, points, width, height):
+    def __init__(self, mode, count, rate, reliable, points, width, height, topic=""):
         super().__init__("zping")
-        cls, topic = MODES[mode]
+        cls, topic = resolve(mode, topic)
         self.mode, self.count = mode, count
         self.points, self.width, self.height = points, width, height
         self.pub = self.create_publisher(cls, topic, qos(reliable))
@@ -163,8 +204,9 @@ def pct(v, p):
 
 def main():
     ap = argparse.ArgumentParser()
-    ap.add_argument("--role", choices=["ping", "pong", "flood", "sink"], required=True)
+    ap.add_argument("--role", choices=["ping", "pong", "flood", "sink", "expect-none"], required=True)
     ap.add_argument("--mode", choices=list(MODES), default="small")
+    ap.add_argument("--topic", default="", help="覆寫 --mode 的預設 topic（訊息型別仍由 --mode 決定）")
     ap.add_argument("--count", type=int, default=100)
     ap.add_argument("--rate", type=float, default=10.0)
     ap.add_argument("--points", type=int, default=1080)
@@ -178,7 +220,7 @@ def main():
     rclpy.init()
     reliable = not a.best_effort
     if a.role == "pong":
-        node = Pong(a.mode, reliable)
+        node = Pong(a.mode, reliable, a.topic)
         try:
             rclpy.spin(node)
         except KeyboardInterrupt:
@@ -187,7 +229,7 @@ def main():
         return
 
     if a.role == "flood":
-        node = Flood(a.mode, a.rate, a.seconds, reliable, a.points, a.width, a.height)
+        node = Flood(a.mode, a.rate, a.seconds, reliable, a.points, a.width, a.height, a.topic)
         end = time.time() + a.seconds + 1.0
         while rclpy.ok() and time.time() < end:
             rclpy.spin_once(node, timeout_sec=0.05)
@@ -197,8 +239,17 @@ def main():
         rclpy.shutdown()
         return
 
+    if a.role == "expect-none":
+        node = ExpectNone(a.mode, a.topic)
+        end = time.time() + a.seconds
+        while rclpy.ok() and time.time() < end:
+            rclpy.spin_once(node, timeout_sec=0.05)
+        ok = node.report(a.label, a.seconds)
+        rclpy.shutdown()
+        sys.exit(0 if ok else 1)
+
     if a.role == "sink":
-        node = Sink(a.mode, reliable)
+        node = Sink(a.mode, reliable, a.topic)
         end = time.time() + a.seconds
         while rclpy.ok() and time.time() < end:
             rclpy.spin_once(node, timeout_sec=0.05)
@@ -206,7 +257,7 @@ def main():
         rclpy.shutdown()
         return
 
-    node = Ping(a.mode, a.count, a.rate, reliable, a.points, a.width, a.height)
+    node = Ping(a.mode, a.count, a.rate, reliable, a.points, a.width, a.height, a.topic)
     deadline = time.time() + a.count / a.rate + 8.0
     while rclpy.ok() and time.time() < deadline and len(node.rtts) < a.count:
         rclpy.spin_once(node, timeout_sec=0.05)
