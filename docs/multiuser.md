@@ -81,6 +81,7 @@ cp .env.example .env    # 填自己的值
 | `CONTAINER_PREFIX` | 空（容器叫 `planning`、`foxglove`…） |
 | `FOXGLOVE_PORT` | `8765` |
 | `AGX_PROJECT_ROOT` / `AGX_WORKSPACES` | 實機的預設路徑 |
+| `AGX_RMW` | `rmw_cyclonedds_cpp`。`planning` / `foxglove` 的映像兩套 rmw 都裝了，設成 `rmw_zenoh_cpp` 即可切換，不必重建映像。切過去就跟 Isaac Sim、`cosmos`、`vlm`、`nanollm` 斷了（它們仍是 CycloneDDS），細節見 `.env.example` |
 | `ZENOH_BRIDGE_CONFIG` | `robot-bridge.json5`（車端）。**在 SIM 上要設成 `sim-bridge.json5`** |
 
 不建 `.env` 時行為與單人時期完全相同。`.env` 已 gitignore——每人的值不同，不要 commit。

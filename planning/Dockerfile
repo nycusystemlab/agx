@@ -51,7 +51,9 @@ RUN apt-get update && \
     ros-${ROS_DISTRO}-xacro \
     ros-${ROS_DISTRO}-joint-state-publisher \
     # ── Middleware / Comm ──
+    # 兩套 rmw 並存，切換靠 RMW_IMPLEMENTATION，不需重建映像
     ros-${ROS_DISTRO}-rmw-cyclonedds-cpp \
+    ros-${ROS_DISTRO}-rmw-zenoh-cpp \
     # ── Utilities ──
     ros-${ROS_DISTRO}-tf-transformations \
     ros-${ROS_DISTRO}-teleop-twist-keyboard \
