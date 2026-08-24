@@ -103,6 +103,30 @@ zenoh，Isaac Sim 留在 DDS。** 車端 router 刻意不載 DDS plugin，SIM �
 `AGX_RMW` 設回 `rmw_cyclonedds_cpp`（見 `CLAUDE.md`）。`cosmos`（VLA）、`vlm`、`nanollm`
 也維持 CycloneDDS，其中 VLA 因此在車上失聯，是刻意取捨、另有 issue 追蹤。
 
+### 啟動與排查
+
+**前置：本機要有一個 `zenohd` router 在跑**，否則節點起得來、`ros2 topic list` 也列得出
+名稱，就是收不到資料：
+
+```bash
+systemctl status rmw-zenohd        # active 才會通；Restart=always，掛了會自己起來
+sudo systemctl restart rmw-zenohd  # 重啟 router 不需要重啟任何 ROS 節點
+# unit 名稱以該機器實際安裝的為準（車與 SIM 的 unit 檔在 infra repo 是分開兩份）
+docker compose -f docker-compose.yaml up -d planning foxglove
+```
+
+| 症狀 | 原因 | 處置 |
+|---|---|---|
+| `ros2 topic list` **列得出 topic，就是沒資料**；啟動時有一則 `WARN [rmw_zenoh_cpp]: Unable to connect to a Zenoh router` | router 沒起／掛了。**只印 WARN 就照常初始化**，這是唯一線索 | `systemctl status rmw-zenohd`。既有節點圖不受影響，只有**新起的行程**收不到 |
+| router 起不來，journal 是 `Address already in use` | 7447 被別人佔著（舊的 `zenoh-bridge` 容器就是這樣） | `docker ps` 找 `zenoh-bridge` 停掉它；橋接容器已從本 repo 移除，車上若還有殘留就是舊部署 |
+| 對面機器的 topic **完全不出現**在 `ros2 topic list` / Foxglove | 跨機白名單的 `default_permission: "deny"` 讓 graph 資訊不跨機，**無解，是已決定的取捨** | 資料是通的：`ros2 topic echo <topic> <型別>` 指定型別就收得到 |
+| 白名單內的某條 topic 跨機收不到 | keyexpr 寫成 `0/{a,b}/**` 這種列舉語法 —— zenoh 1.10 **不支援、不報錯、靜默零命中** | 逐條拆成獨立 keyexpr（設定在 infra repo） |
+| 跨機 `ros2 action send_goal` 停在 `Waiting for an action server` | router↔router 拓撲本身的問題，**與白名單無關**（拿掉 `access_control` 重測一樣） | 未解，已知限制 |
+| `Timed out waiting for transform` / `Publisher count = 0` | 兩端 rmw 不一致（最常見：Isaac Sim 的驗證流程忘了整組切回 CycloneDDS） | 把 `AGX_RMW` 與 host 的 `RMW_IMPLEMENTATION` 對齊 |
+
+驗通訊本身用 `tools/zping.py`（`ping`／`pong`／`expect-none`…），
+用法見 [`tools/zenoh-latency.md`](../tools/zenoh-latency.md) §10.8。
+
 ### 多人隔離：擱置，不是取消
 
 本次遷移的範圍刻意收斂為單人，用既有的預設 domain。以下**都還在桌上，只是沒做**，
@@ -134,7 +158,7 @@ cp .env.example .env    # 填自己的值
 
 > 🚧 **這一節正在被 infra repo 的 `robot-net/` 取代，但還沒完全交接。**
 >
-> | | 狀態（2026-08-16） |
+> | | 狀態（2026-08-25） |
 > |---|---|
 > | ROS 2 topic | ✅ **已改用兩端 `zenohd` router + `rmw_zenoh_cpp`**（見上面「跨機通訊」一節），keyexpr 白名單明列；新舊架構的延遲實測見 [`tools/zenoh-latency.md`](../tools/zenoh-latency.md) |
 > | 連 ROBOT | ✅ 已改用車的 wg IP，見上面「連 ROBOT」一節 |

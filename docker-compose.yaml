@@ -14,6 +14,4 @@ include:
   - path: ./nanollm/docker-compose.yaml
   - path: ./cosmos/docker-compose.yaml
 
-# SIM ↔ 實車的跨機連線不再是 compose 的一部分：zenoh-bridge-dds 已由兩端的
-# zenohd router 取代，它是機器層級的 systemd unit（rmw-zenohd），設定與安裝腳本
-# 在 infra repo 的 robot-net/zenoh/。
+# 這裡沒有跨機橋接：zenoh-bridge-dds 已由機器層級的 zenohd router 取代，見 docs/multiuser.md。

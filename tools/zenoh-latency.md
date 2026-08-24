@@ -1,4 +1,4 @@
-# zenoh 橋接實測：延遲、流量上限與瓶頸歸因（SIM ↔ 實車）
+# zenoh 跨機實測：延遲、流量上限與瓶頸歸因（SIM ↔ 實車）
 
 > ⚠️ **§1–§9 描述的是舊架構：`zenoh-bridge-dds` 1.10.0 + `rmw_cyclonedds_cpp`（ROS 2 Humble）。**
 > 這套架構已於 2026-08-24／25 被 `rmw_zenoh_cpp 0.1.9` + 兩端 `zenohd` router 取代，
