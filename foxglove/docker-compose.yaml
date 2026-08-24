@@ -10,7 +10,7 @@ services:
     container_name: ${CONTAINER_PREFIX:-}foxglove
     environment:
       - ROS_DOMAIN_ID=${ROS_DOMAIN_ID:-0}
-      - RMW_IMPLEMENTATION=${AGX_RMW:-rmw_cyclonedds_cpp}
+      - RMW_IMPLEMENTATION=${AGX_RMW:-rmw_zenoh_cpp}
     restart: unless-stopped
     command: >
       /bin/bash -c "source /opt/ros/humble/setup.bash && ros2 run foxglove_bridge foxglove_bridge --ros-args -p send_buffer_limit:=100000000 -p address:=0.0.0.0 -p port:=${FOXGLOVE_PORT:-8765}"

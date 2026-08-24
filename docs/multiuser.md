@@ -81,10 +81,10 @@ cp .env.example .env    # 填自己的值
 | `CONTAINER_PREFIX` | 空（容器叫 `planning`、`foxglove`…） |
 | `FOXGLOVE_PORT` | `8765` |
 | `AGX_PROJECT_ROOT` / `AGX_WORKSPACES` | 實機的預設路徑 |
-| `AGX_RMW` | `planning` 是 `rmw_zenoh_cpp`、`foxglove` 仍是 `rmw_cyclonedds_cpp`（遷移尚未進行到它）。兩者的映像都裝了兩套 rmw，切換不必重建映像。用 zenoh 時本機要有 `zenohd` router，且跟 Isaac Sim、`cosmos`、`vlm`、`nanollm` 是斷的（它們仍是 CycloneDDS）——**在 SIM 上跑 Nav2 驗證流程要設成 `rmw_cyclonedds_cpp`**。細節見 `.env.example` |
+| `AGX_RMW` | `planning` 與 `foxglove` 都是 `rmw_zenoh_cpp`。兩者的映像都裝了兩套 rmw，切換不必重建映像。用 zenoh 時本機要有 `zenohd` router，且跟 Isaac Sim、`cosmos`、`vlm`、`nanollm` 是斷的（它們仍是 CycloneDDS）——**在 SIM 上跑 Nav2 驗證流程要設成 `rmw_cyclonedds_cpp`**。Foxglove 只列得出**同一台機器**的 topic（跨機 graph 被 keyexpr 白名單擋住，是已決定的取捨）。細節見 `.env.example` |
 | `ZENOH_BRIDGE_CONFIG` | `robot-bridge.json5`（車端）。**在 SIM 上要設成 `sim-bridge.json5`** |
 
-除了 `AGX_RMW`（`planning` 預設已改為 zenoh），不建 `.env` 時行為與單人時期相同。`.env` 已 gitignore——每人的值不同，不要 commit。
+除了 `AGX_RMW`（`planning`／`foxglove` 預設已改為 zenoh），不建 `.env` 時行為與單人時期相同。`.env` 已 gitignore——每人的值不同，不要 commit。
 
 ## 兩個會踩的坑
 
