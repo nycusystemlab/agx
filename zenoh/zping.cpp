@@ -9,6 +9,7 @@
 #include <vector>
 
 #include "rclcpp/rclcpp.hpp"
+#include "std_msgs/msg/header.hpp"
 #include "geometry_msgs/msg/pose_stamped.hpp"
 #include "geometry_msgs/msg/pose_with_covariance_stamped.hpp"
 #include "sensor_msgs/msg/image.hpp"
@@ -231,9 +232,13 @@ int main(int argc, char **argv) {
   auto deadline = std::chrono::steady_clock::now() +
                   std::chrono::duration_cast<std::chrono::steady_clock::duration>(
                       std::chrono::duration<double>(o.count / o.rate + 8.0));
+  // 必須是帶 timeout 的 spin_once：無事可做時 spin_some 會立刻返回，這個迴圈就把一個
+  // 核心跑滿，而 CPU 競爭會灌水這支探針自己要量的 RTT（Python 版同樣用 0.05s）。
+  rclcpp::executors::SingleThreadedExecutor exec;
+  exec.add_node(node);
   while (rclcpp::ok() && std::chrono::steady_clock::now() < deadline &&
          static_cast<int>(node->rtts.size()) < o.count)
-    rclcpp::spin_some(node);
+    exec.spin_once(50ms);
 
   auto &r = node->rtts;
   printf("RESULT {\"label\": \"%s\", \"impl\": \"cpp\", \"mode\": \"%s\", \"sent\": %d, \"recv\": %zu",
