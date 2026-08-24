@@ -62,19 +62,28 @@ def load_map(yaml_path):
             t = b''
             while True:
                 c = f.read(1)
+                if not c:                       # EOF：b'' 會通過下面的空白字元判斷
+                    if t:
+                        return t
+                    raise ValueError(f'{pgm}: PGM header 未完成就遇到檔案結尾')
                 if c in b' \t\r\n':
                     if t:
                         return t
                     continue
                 if c == b'#':
-                    while f.read(1) not in b'\r\n':
-                        pass
+                    while True:
+                        c = f.read(1)
+                        if not c or c in b'\r\n':
+                            break
                     continue
                 t += c
         assert tok() == b'P5'
         w, h = int(tok()), int(tok())
         tok()
-        px = np.frombuffer(f.read(w * h), dtype=np.uint8).reshape(h, w)
+        raw = f.read(w * h)
+        if len(raw) != w * h:
+            raise ValueError(f'{pgm}: 像素資料只有 {len(raw)} bytes，{w}x{h} 需要 {w * h}')
+        px = np.frombuffer(raw, dtype=np.uint8).reshape(h, w)
     # trinary：p = (255 - value)/255，p > occupied_thresh 才算佔據
     thresh = 255 * (1.0 - float(meta['occupied_thresh']))
     occ = px < thresh
