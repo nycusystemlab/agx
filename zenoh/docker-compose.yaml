@@ -5,6 +5,10 @@
 #
 #   車上：  docker compose -f zenoh/docker-compose.yaml up -d
 #   SIM：   ZENOH_BRIDGE_CONFIG=sim-bridge.json5 docker compose -f zenoh/docker-compose.yaml up -d
+# ⚠️ 與 rmw_zenoh 互斥：planning 的預設中介軟體已是 rmw_zenoh_cpp，而車上的
+#    zenohd router（infra repo 的 systemd unit rmw-zenohd）與這座橋都 listen 7447。
+#    兩者同時起會有一方 Address already in use。切到 rmw_zenoh 的機器上不要起這個
+#    service（根目錄的 docker compose up 要逐一指名服務，或先 docker compose stop zenoh-bridge）。
 services:
   zenoh-bridge:
     image: eclipse/zenoh-bridge-dds:1.10.0 # 設定檔的鍵名對照這版的 DEFAULT_CONFIG.json5
