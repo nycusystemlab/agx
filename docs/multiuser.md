@@ -69,6 +69,51 @@ ssh <SIM> -t 'ssh <ROBOT 的 wg IP>'
 
 網路規則本身收在 infra repo 的 `robot-net/`（VLAN、防火牆白名單、zenoh 設定範本、驗證腳本）。
 
+## 跨機通訊：兩端 router，不再有橋接容器
+
+ROS 2 的跨機資料以前走 `zenoh-bridge-dds` 容器（本 repo 的 `zenoh/docker-compose.yaml`，已移除；
+該目錄改名為 `tools/`，只留量測探針）。
+2026-08-24／25 之後改成**兩端各一個 `zenohd` router**，`planning` 與 `foxglove` 直接以
+`rmw_zenoh_cpp` 講 zenoh，中間不再有 DDS↔zenoh 的翻譯：
+
+```
+SIM  zenohd（listen 127.0.0.1:7447，connect 車的 wg 位址）
+       │  ← 白名單只寫在 SIM 端：一條連線同時管住兩個方向
+       ▼
+車    zenohd（listen wg 位址 + loopback，不載 DDS plugin）
+```
+
+- **router 不在本 repo，也不在 compose。** 它是機器層級的 systemd unit `rmw-zenohd`
+  （`Restart=always`，開機自動啟動），設定檔、unit 與安裝腳本都在 infra repo 的
+  `robot-net/zenoh/`。理由是它的生命週期屬於機器，不屬於任何一個服務堆疊。
+- **連線由 SIM 主動發起**，與既有防火牆的最小授權一致，路由器規則一條都沒改。
+- **白名單是 keyexpr 層級**（`access_control`，`default_permission: "deny"` + 10 條
+  獨立 keyexpr）。keyexpr 格式是 `<domain>/<topic>/<type>/<type_hash>`，所以白名單直接
+  照 topic 路徑寫。`0/{scan,goal_pose}/**` 這種列舉語法在 zenoh 1.10 **不支援、不報錯、
+  靜默零命中**——改白名單時務必逐條寫。
+- **代價：跨機 ROS graph 不通**（`deny` 這個預設一生效，liveliness token 就過不去，
+  無解）。所以另一台機器的 topic 不會出現在 `ros2 topic list` 或 Foxglove 裡。
+  **資料是通的，只有 graph 不通**，workaround 是指定型別：`ros2 topic echo <topic> <型別>`。
+  這是已決定的取捨（留白名單），不是設定壞了。
+
+⚠️ **這不是「全面遷移到 zenoh」。** 現況是：**跨機與主要節點（`planning`、`foxglove`）用
+zenoh，Isaac Sim 留在 DDS。** 車端 router 刻意不載 DDS plugin，SIM 端的 DDS plugin 則被
+實測否決（`zenoh-bridge-dds` 的 keyexpr 命名空間與 rmw_zenoh 不相容，上游 1.10 沒有相容
+模式），所以 **Isaac Sim 的資料進不了 zenoh graph**——要跑 Isaac 的驗證流程就得把
+`AGX_RMW` 設回 `rmw_cyclonedds_cpp`（見 `CLAUDE.md`）。`cosmos`（VLA）、`vlm`、`nanollm`
+也維持 CycloneDDS，其中 VLA 因此在車上失聯，是刻意取捨、另有 issue 追蹤。
+
+### 多人隔離：擱置，不是取消
+
+本次遷移的範圍刻意收斂為單人，用既有的預設 domain。以下**都還在桌上，只是沒做**，
+之後接手的人可以直接續，不必重談：
+
+- zenoh 的 access control 目前**只用來做 keyexpr 過濾**，`subjects` 僅以網卡分
+  「本機（`lo`）／跨機（`eno1`）」——**沒有憑證、沒有 per-user subject**。
+- per-user 的 router 與連接埠沒有做。
+- 跨機白名單的 keyexpr 寫死 `0/…`，所以**跨機目前只有 domain 0 會通**；本機的
+  domain 隔離不受影響（domain 是 keyexpr 的第一段，天生互不可見）。
+
 ## compose 變數
 
 ```bash
@@ -82,7 +127,6 @@ cp .env.example .env    # 填自己的值
 | `FOXGLOVE_PORT` | `8765` |
 | `AGX_PROJECT_ROOT` / `AGX_WORKSPACES` | 實機的預設路徑 |
 | `AGX_RMW` | `planning` 與 `foxglove` 都是 `rmw_zenoh_cpp`。兩者的映像都裝了兩套 rmw，切換不必重建映像。用 zenoh 時本機要有 `zenohd` router，且跟 Isaac Sim、`cosmos`、`vlm`、`nanollm` 是斷的（它們仍是 CycloneDDS）——**在 SIM 上跑 Nav2 驗證流程要設成 `rmw_cyclonedds_cpp`**。Foxglove 只列得出**同一台機器**的 topic（跨機 graph 被 keyexpr 白名單擋住，是已決定的取捨）。細節見 `.env.example` |
-| `ZENOH_BRIDGE_CONFIG` | `robot-bridge.json5`（車端）。**在 SIM 上要設成 `sim-bridge.json5`** |
 
 除了 `AGX_RMW`（`planning`／`foxglove` 預設已改為 zenoh），不建 `.env` 時行為與單人時期相同。`.env` 已 gitignore——每人的值不同，不要 commit。
 
@@ -92,7 +136,7 @@ cp .env.example .env    # 填自己的值
 >
 > | | 狀態（2026-08-16） |
 > |---|---|
-> | ROS 2 topic | ✅ **已改用 `zenoh-bridge-dds`**（`zenoh/docker-compose.yaml`），topic allowlist 明列；延遲與流量上限實測見 [`zenoh/zenoh-latency.md`](../zenoh/zenoh-latency.md) |
+> | ROS 2 topic | ✅ **已改用兩端 `zenohd` router + `rmw_zenoh_cpp`**（見上面「跨機通訊」一節），keyexpr 白名單明列；新舊架構的延遲實測見 [`tools/zenoh-latency.md`](../tools/zenoh-latency.md) |
 > | 連 ROBOT | ✅ 已改用車的 wg IP，見上面「連 ROBOT」一節 |
 > | 取 image | ✅ ROBOT 已能直接 `docker pull`；下面第 2 點的三步中轉**作廢** |
 > | rosbag | ✅ 防火牆已放行 ROBOT → NAS |

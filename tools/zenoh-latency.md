@@ -466,8 +466,8 @@ docker run --rm -d --name zpong --network host -e RMW_IMPLEMENTATION=rmw_zenoh_c
 
 # SIM 上：ping
 docker run --rm --network host -e RMW_IMPLEMENTATION=rmw_zenoh_cpp -e ROS_DOMAIN_ID=0 \
-  -v /home/systemlab/agx/zenoh:/zenoh:ro agx_ros/planning:latest \
-  bash -lc 'source /opt/ros/humble/setup.bash && python3 /zenoh/zping.py --role ping --mode small --count 900 --rate 30'
+  -v /home/systemlab/agx/tools:/tools:ro agx_ros/planning:latest \
+  bash -lc 'source /opt/ros/humble/setup.bash && python3 /tools/zping.py --role ping --mode small --count 900 --rate 30'
 ```
 
 - C++ 版一樣要在 x86 與 aarch64 各編一次（`cmake -S . -B build -DCMAKE_BUILD_TYPE=Release`），
