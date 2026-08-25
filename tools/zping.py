@@ -96,12 +96,15 @@ class Sink(Node):
             self.first_t = now
         self.last_t = now
         self.n += 1
-        if self.mode == "image":
-            self.bytes += len(msg.data)
-        elif self.mode == "scan":
-            self.bytes += 4 * len(msg.ranges)
-        else:
-            self.bytes += 736
+        # bytes 只累加第一則之後的訊息：報表的 dur 是 first_t→last_t，只涵蓋 n-1 個到達間隔，
+        # 把第一則的 bytes 也算進去會讓吞吐高估 n/(n-1)（短跑的樣本數下可達數個百分點）
+        if self.n > 1:
+            if self.mode == "image":
+                self.bytes += len(msg.data)
+            elif self.mode == "scan":
+                self.bytes += 4 * len(msg.ranges)
+            else:
+                self.bytes += 736
         try:
             self.seqs.append(int(msg.header.frame_id))
         except ValueError:

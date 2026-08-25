@@ -9,3 +9,14 @@ include:
     - path:
           - ./foxglove/docker-compose.yaml
           - ./foxglove/docker-compose.pc.yaml
+
+# PC 用 bridge network，容器內沒有 host 的 zenohd router（listen 127.0.0.1:7447），
+# 也沒有 infra 的 rmw-zenohd unit。吃到車端的 zenoh 預設會靜默斷線：
+# 只有一則 WARN、ros2 topic list 照樣有東西、服務之間零資料。所以 PC 預設走 CycloneDDS。
+services:
+    planning:
+        environment:
+            - RMW_IMPLEMENTATION=${AGX_RMW:-rmw_cyclonedds_cpp}
+    foxglove:
+        environment:
+            - RMW_IMPLEMENTATION=${AGX_RMW:-rmw_cyclonedds_cpp}
