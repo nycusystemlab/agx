@@ -97,6 +97,9 @@ CLAUDE.md
 # 多人開發：機器位址與帳號對應表，不進版控
 docs/multiuser.local.md
 
-# zenoh bridge 的設定檔：唯一事實來源是 infra repo 的 robot-net/zenoh/*.json5.example，
-# 由那邊的 deploy.sh 依 infra.env 展開後複製過來，不在這裡另存一份
+# zenoh bridge 舊設定檔：檔案本身已隨橋接移除，但車與 SIM 的既有 checkout 仍留著
+# infra 產生的 robot-bridge.json5 / sim-bridge.json5（帶 wg 位址），規則拿掉就會被 git add -A 收進來
 zenoh/*.json5
+
+# /to-spec、/to-tickets 的本地中間產物（最終歸宿是 GitHub issue）
+.scratch/

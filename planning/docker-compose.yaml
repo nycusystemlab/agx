@@ -13,7 +13,7 @@ services:
       - NVIDIA_VISIBLE_DEVICES=all
       - NVIDIA_DRIVER_CAPABILITIES=all
       - ROS_DOMAIN_ID=${ROS_DOMAIN_ID:-0}
-      - RMW_IMPLEMENTATION=rmw_cyclonedds_cpp
+      - RMW_IMPLEMENTATION=${AGX_RMW:-rmw_zenoh_cpp}
       - DISPLAY=${DISPLAY}
       - XAUTHORITY=/tmp/.docker.xauth
     # Cgroup 設備白名單

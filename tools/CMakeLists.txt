@@ -1,0 +1,8 @@
+cmake_minimum_required(VERSION 3.8)
+project(zping_cpp)
+find_package(rclcpp REQUIRED)
+find_package(geometry_msgs REQUIRED)
+find_package(sensor_msgs REQUIRED)
+find_package(std_msgs REQUIRED)
+add_executable(zping zping.cpp)
+target_link_libraries(zping rclcpp::rclcpp ${geometry_msgs_TARGETS} ${sensor_msgs_TARGETS} ${std_msgs_TARGETS})

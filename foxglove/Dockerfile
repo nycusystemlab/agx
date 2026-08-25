@@ -23,6 +23,7 @@ RUN apt-get update && apt-get install -y \
     ros-${ROS_DISTRO}-ros-base \
     ros-${ROS_DISTRO}-foxglove-bridge \
     ros-${ROS_DISTRO}-rmw-cyclonedds-cpp \
+    ros-${ROS_DISTRO}-rmw-zenoh-cpp \
     net-tools \
     iputils-ping \
     && rm -rf /var/lib/apt/lists/*

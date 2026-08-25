@@ -51,7 +51,9 @@ RUN apt-get update && \
     ros-${ROS_DISTRO}-xacro \
     ros-${ROS_DISTRO}-joint-state-publisher \
     # ── Middleware / Comm ──
+    # 兩套 rmw 並存，切換靠 RMW_IMPLEMENTATION，不需重建映像
     ros-${ROS_DISTRO}-rmw-cyclonedds-cpp \
+    ros-${ROS_DISTRO}-rmw-zenoh-cpp \
     # ── Utilities ──
     ros-${ROS_DISTRO}-tf-transformations \
     ros-${ROS_DISTRO}-teleop-twist-keyboard \
@@ -97,8 +99,10 @@ RUN git clone --depth 1 --branch v2.56.4 https://github.com/IntelRealSense/libre
     rm -rf /tmp/librealsense
 
 # ── 4. Python 庫 ──────────────────────────────────────────────────────────
+# setuptools 釘版：>=70 會用 packaging 的 canonicalize_version(strip_trailing_zero=)，
+# 而 jammy 的 packaging 是 21.3，沒有這個參數 —— colcon 建 ament_python 套件會整批 abort
 RUN pip3 install --no-cache-dir \
-    setuptools \
+    "setuptools==59.6.0" \
     pyserial \
     "numpy<1.24.0" \
     PyYAML
