@@ -1,0 +1,3 @@
+# rtc0 (nvvrs-pseq-rtc) registers after fake-hwclock.service and resets the clock to 1970
+# via CONFIG_RTC_HCTOSYS when its backup battery is missing. Re-apply the saved time.
+ACTION=="add", SUBSYSTEM=="rtc", KERNEL=="rtc0", RUN+="/sbin/fake-hwclock load"
